@@ -1,0 +1,32 @@
+{
+  "name": "the-sandbox",
+  "version": "1.0.0",
+  "description": "The Sandbox - Falling Sand Physics Simulator",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server.js",
+    "tunnel": "npx localtunnel --port 3456 --subdomain sandbox-community",
+    "online": "node server.js & npx localtunnel --port 3456 --subdomain sandbox-community",
+    "build": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.sandbox.app",
+    "productName": "The Sandbox",
+    "win": {
+      "target": "portable"
+    },
+    "files": [
+      "main.js",
+      "index.html"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "dependencies": {
+    "express": "^4.22.1",
+    "localtunnel": "^2.0.2"
+  }
+}

@@ -1,0 +1,4386 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>The Sandbox</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#1a1a2e;display:flex;flex-direction:column;align-items:center;font-family:'Segoe UI',sans-serif;color:#ccc;height:100vh}
+#menu{position:fixed;top:0;left:0;width:100%;height:100%;background:#0a0a1a;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000}
+#menu canvas{position:absolute;top:0;left:0;width:100%;height:100%;opacity:0.3;pointer-events:none}
+#menu .content{position:relative;z-index:1;text-align:center}
+#menu h1{font-size:64px;color:#ff8844;text-shadow:0 0 30px rgba(255,136,68,0.5),0 4px 8px rgba(0,0,0,0.8);margin-bottom:8px;font-family:'Courier New',monospace}
+#menu h2{font-size:18px;color:#888;margin-bottom:40px;font-weight:normal}
+#menu .mbtn{display:block;width:250px;margin:8px auto;padding:14px;background:linear-gradient(135deg,#334,#223);border:2px solid #555;border-radius:10px;color:#ddd;font-size:16px;font-weight:bold;cursor:pointer;transition:all .2s;text-align:center}
+#menu .mbtn:hover{border-color:#ff8844;color:#ff8844;transform:scale(1.05);box-shadow:0 0 20px rgba(255,136,68,0.3)}
+#menu .ver{color:#444;font-size:11px;margin-top:30px}
+#game{display:none;flex-direction:column;align-items:center;width:100%;height:100%}
+#top{display:flex;align-items:center;gap:8px;padding:4px 8px;flex-shrink:0}
+#toolbar{display:flex;gap:3px;flex-wrap:wrap;max-width:800px;max-height:120px;overflow-y:auto;padding:4px;border:1px solid #333;border-radius:6px;background:rgba(0,0,0,0.3)}
+#toolbar::-webkit-scrollbar{width:6px}
+#toolbar::-webkit-scrollbar-thumb{background:#555;border-radius:3px}
+.btn{padding:3px 8px;border:2px solid #444;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;color:#fff;transition:all .12s;user-select:none;text-shadow:1px 1px 1px rgba(0,0,0,.5);white-space:nowrap}
+.btn:hover{transform:scale(1.05);filter:brightness(1.2)}
+.btn.sel{border-color:#fff;box-shadow:0 0 8px rgba(255,255,255,.4)}
+#brushSize{display:flex;align-items:center;gap:4px;font-size:12px;flex-shrink:0}
+#brushSize input{width:60px}
+#controls{display:flex;align-items:center;gap:6px;flex-shrink:0}
+canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0}
+#info{font-size:10px;color:#555;padding:2px}
+</style>
+</head>
+<body>
+
+<!-- MAIN MENU -->
+<div id="menu">
+    <canvas id="menubg"></canvas>
+    <div class="content">
+        <h1>THE SANDBOX</h1>
+        <h2>Falling Sand Physics Simulator</h2>
+        <div class="mbtn" onclick="startNew()">🎮 Nová hra</div>
+        <div class="mbtn" onclick="startLoad()">📂 Načíst uloženou</div>
+        <div class="mbtn" onclick="showSettings()">⚙ Nastavení</div>
+        <div class="mbtn" onclick="showHelp()">❓ Nápověda</div>
+        <div class="mbtn" onclick="showGallery()">🌍 Galerie výtvorů</div>
+        <div class="mbtn" onclick="showProfile()">👤 Můj profil</div>
+        <div class="ver">v1.2 — 93 elementů — 2026</div>
+    </div>
+</div>
+
+<!-- HELP OVERLAY -->
+<div id="help" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.9);z-index:2000;overflow-y:auto;padding:40px">
+    <div style="max-width:600px;margin:0 auto;color:#ccc;line-height:1.6">
+        <h2 style="color:#ff8844;margin-bottom:16px">Ovládání</h2>
+        <p><b>LMB</b> — Kreslit vybraný element</p>
+        <p><b>RMB</b> — Mazat</p>
+        <p><b>Scroll</b> — Velikost štětce</p>
+        <p><b>1-0</b> — Rychlý výběr elementu</p>
+        <p><b>P</b> — Pauza</p>
+        <p><b>C</b> — Vyčistit plátno</p>
+        <h2 style="color:#ff8844;margin:16px 0">Nástroje (klávesy)</h2>
+        <p><b>L</b> — Blesk (na pozici kurzoru)</p>
+        <p><b>T</b> — Tornádo</p>
+        <p><b>Q</b> — Zemětřesení</p>
+        <p><b>G</b> — Gravitační flip</p>
+        <h2 style="color:#ff8844;margin:16px 0">Tipy</h2>
+        <p>🔥 Postavte jadernou elektrárnu: <b>Faucet → Uranium → Turbine → Wire → Lamp</b></p>
+        <p>🌳 Zasaďte strom: <b>Seed + Water</b></p>
+        <p>💣 Řetězová reakce: <b>Gunpowder / C4 / Nitro + Fire</b></p>
+        <p>🌊 Vodní cyklus: <b>Water → Steam → Cloud → Rain</b></p>
+        <p>🧲 Magnet přitahuje všechny kovy</p>
+        <p>🧼 Soap čistí kyselinu, jed i viry</p>
+        <br>
+        <div class="mbtn" onclick="document.getElementById('help').style.display='none'" style="display:inline-block;width:auto;padding:10px 30px">✕ Zavřít</div>
+    </div>
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div id="settings" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;overflow-y:auto;padding:40px">
+    <div style="max-width:500px;margin:0 auto;color:#ccc;line-height:2">
+        <h2 style="color:#ff8844;margin-bottom:20px">⚙ Nastavení</h2>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Velikost světa</span>
+            <select id="setWorldSize" style="padding:4px 8px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px">
+                <option value="small">Malý (200×150)</option>
+                <option value="medium" selected>Střední (400×300)</option>
+                <option value="large">Velký (600×400)</option>
+            </select>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Zvětšení (Scale)</span>
+            <select id="setScale" style="padding:4px 8px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px">
+                <option value="1">1x</option>
+                <option value="2" selected>2x</option>
+                <option value="3">3x</option>
+            </select>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Výchozí rychlost simulace</span>
+            <select id="setSpeed" style="padding:4px 8px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px">
+                <option value="1" selected>1x</option>
+                <option value="2">2x</option>
+                <option value="3">3x</option>
+                <option value="5">5x</option>
+            </select>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Výchozí štětec</span>
+            <input type="range" id="setDefaultBrush" min="1" max="12" value="3" style="width:120px">
+            <span id="setDBval">3</span>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Zobrazit FPS</span>
+            <label style="cursor:pointer"><input type="checkbox" id="setShowFps" checked style="margin-right:6px">Ano</label>
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Barva pozadí</span>
+            <input type="color" id="setBgColor" value="#1a1a2e" style="width:50px;height:30px;border:1px solid #555;border-radius:4px;cursor:pointer">
+        </div>
+
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
+            <span>Smazat všechny uložené hry</span>
+            <div class="mbtn" onclick="clearAllSaves()" style="display:inline-block;width:auto;padding:6px 16px;background:#633;font-size:13px">🗑 Smazat</div>
+        </div>
+
+        <br>
+        <div style="display:flex;gap:12px;justify-content:center">
+            <div class="mbtn" onclick="applySettings()" style="display:inline-block;width:auto;padding:10px 30px">✓ Použít</div>
+            <div class="mbtn" onclick="document.getElementById('settings').style.display='none'" style="display:inline-block;width:auto;padding:10px 30px">✕ Zavřít</div>
+        </div>
+    </div>
+</div>
+
+<!-- PROFILE OVERLAY -->
+<div id="profile" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.93);z-index:2000;overflow-y:auto;padding:40px">
+    <div style="max-width:500px;margin:0 auto;color:#ccc">
+        <h2 style="color:#ff8844;margin-bottom:20px;text-align:center">👤 Můj profil</h2>
+
+        <!-- Avatar -->
+        <div style="text-align:center;margin-bottom:16px">
+            <canvas id="profAvatarPreview" width="72" height="72" style="border-radius:50%;border:3px solid #ff8844;cursor:pointer;image-rendering:pixelated;background:#222" onclick="avatarEditorToggle()"></canvas>
+            <div style="font-size:10px;color:#666;margin-top:4px">Klikni pro úpravu avataru</div>
+        </div>
+
+        <!-- Avatar Editor (hidden by default) -->
+        <div id="avatarEditor" style="display:none;background:#111;border:1px solid #555;border-radius:8px;padding:12px;margin-bottom:16px">
+            <div style="text-align:center;margin-bottom:8px;font-size:12px;color:#ff8844;font-weight:bold">🎨 Editor avataru (12×12)</div>
+            <div style="display:flex;gap:12px;justify-content:center;align-items:start;flex-wrap:wrap">
+                <canvas id="avatarCanvas" width="192" height="192" style="border:1px solid #444;cursor:crosshair;image-rendering:pixelated;border-radius:4px"></canvas>
+                <div>
+                    <div style="font-size:10px;color:#888;margin-bottom:4px">Barva:</div>
+                    <div id="avatarPalette" style="display:grid;grid-template-columns:repeat(6,20px);gap:2px;margin-bottom:8px"></div>
+                    <div style="font-size:10px;color:#888;margin-bottom:4px">Nástroje:</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                        <button class="btn" style="background:#345;font-size:10px;padding:3px 8px" onclick="avatarTool='draw'">✏️ Kreslit</button>
+                        <button class="btn" style="background:#345;font-size:10px;padding:3px 8px" onclick="avatarTool='erase'">🧹 Guma</button>
+                        <button class="btn" style="background:#534;font-size:10px;padding:3px 8px" onclick="avatarFill()">🫧 Výpln</button>
+                        <button class="btn" style="background:#633;font-size:10px;padding:3px 8px" onclick="avatarClear()">🗑 Smazat</button>
+                    </div>
+                    <div style="font-size:10px;color:#888;margin-top:8px;margin-bottom:4px">Předlohy:</div>
+                    <div style="display:flex;gap:4px;flex-wrap:wrap">
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('face')">🙂</button>
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('robot')">🤖</button>
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('skull')">💀</button>
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('heart')">❤️</button>
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('star')">⭐</button>
+                        <button class="btn" style="background:#354;font-size:10px;padding:3px 6px" onclick="avatarPreset('cat')">🐱</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+                <label style="width:100px;font-size:13px;color:#888">Přezdívka:</label>
+                <input id="profName" type="text" maxlength="20" placeholder="Tvoje jméno..." style="flex:1;padding:8px;background:#222;color:#eee;border:1px solid #555;border-radius:6px;font-size:14px">
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <label style="width:100px;font-size:13px;color:#888">Bio:</label>
+                <input id="profBio" type="text" maxlength="80" placeholder="Něco o sobě..." style="flex:1;padding:8px;background:#222;color:#eee;border:1px solid #555;border-radius:6px;font-size:13px">
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="margin-top:20px;background:rgba(255,136,68,0.06);border:1px solid #443;border-radius:8px;padding:14px">
+            <h3 style="color:#ff8844;font-size:13px;margin:0 0 10px 0">📊 Statistiky</h3>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
+                <div>🎮 Odehráno:</div><div id="profTimePlayed" style="color:#eee;text-align:right">0 min</div>
+                <div>💾 Uložených výtvorů:</div><div id="profSaves" style="color:#eee;text-align:right">0</div>
+                <div>🚀 Publikovaných:</div><div id="profPublished" style="color:#eee;text-align:right">0</div>
+                <div>🖱️ Pixelů nakresleno:</div><div id="profPixels" style="color:#eee;text-align:right">0</div>
+                <div>⭐ Získaných lajků:</div><div id="profLikes" style="color:#eee;text-align:right">0</div>
+                <div>🏆 Úroveň:</div><div id="profLevel" style="color:#ff8844;text-align:right;font-weight:bold">Nováček</div>
+            </div>
+            <div style="margin-top:8px">
+                <div style="font-size:10px;color:#666;margin-bottom:2px">XP: <span id="profXP">0</span> / <span id="profXPNext">100</span></div>
+                <div style="background:#222;border-radius:4px;height:8px;overflow:hidden">
+                    <div id="profXPBar" style="background:linear-gradient(90deg,#ff8844,#ffaa44);height:100%;width:0%;border-radius:4px;transition:width .3s"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Achievements -->
+        <div style="margin-top:16px;background:rgba(255,136,68,0.06);border:1px solid #443;border-radius:8px;padding:14px">
+            <h3 style="color:#ff8844;font-size:13px;margin:0 0 10px 0">🏅 Úspěchy</h3>
+            <div id="profAchievements" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+        </div>
+
+        <br>
+        <div style="display:flex;gap:12px;justify-content:center">
+            <div class="mbtn" onclick="profileSave()" style="display:inline-block;width:auto;padding:10px 30px">✓ Uložit</div>
+            <div class="mbtn" onclick="document.getElementById('profile').style.display='none'" style="display:inline-block;width:auto;padding:10px 30px">✕ Zavřít</div>
+        </div>
+    </div>
+</div>
+
+<!-- GALLERY OVERLAY -->
+<div id="gallery" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.95);z-index:2000;overflow-y:auto;padding:30px">
+    <div style="max-width:700px;margin:0 auto;color:#ccc">
+        <h2 style="color:#ff8844;margin-bottom:16px;text-align:center">🌍 Galerie výtvorů</h2>
+
+        <!-- Tabs -->
+        <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
+            <div class="mbtn" id="tabMy" onclick="galleryTab('my')" style="display:inline-block;width:auto;padding:8px 20px;font-size:13px">📁 Moje výtvory</div>
+            <div class="mbtn" id="tabCommunity" onclick="galleryTab('community')" style="display:inline-block;width:auto;padding:8px 20px;font-size:13px">👥 Komunita</div>
+        </div>
+
+        <!-- My creations -->
+        <div id="galMy">
+            <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center">
+                <input id="galName" type="text" placeholder="Název výtvoru..." maxlength="40" style="flex:1;padding:8px;background:#222;color:#eee;border:1px solid #555;border-radius:6px;font-size:14px">
+                <div class="mbtn" onclick="gallerySave()" style="display:inline-block;width:auto;padding:8px 16px;font-size:13px;margin:0">💾 Uložit aktuální</div>
+            </div>
+            <div id="galGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+            <p id="galEmpty" style="text-align:center;color:#666;margin-top:20px">Zatím žádné výtvory. Ulož svůj první!</p>
+        </div>
+
+        <!-- Community -->
+        <div id="galCommunity" style="display:none">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+                <span style="font-size:12px;color:#888">Řazení:</span>
+                <select id="pubSort" onchange="communityRenderGrid()" style="padding:4px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;font-size:11px">
+                    <option value="newest">Nejnovější</option>
+                    <option value="likes">Nejoblíbenější</option>
+                    <option value="name">Podle názvu</option>
+                </select>
+                <span style="font-size:11px;color:#666" id="pubCount"></span>
+            </div>
+            <div id="galCommunityGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px"></div>
+            <p id="pubEmpty" style="text-align:center;color:#666;margin-top:20px">Zatím nic. Buď první kdo publikuje!</p>
+        </div>
+
+        <!-- Share / Import (hidden) -->
+        <div id="galShare" style="display:none"></div>
+
+        <br>
+        <div style="text-align:center">
+            <div class="mbtn" onclick="document.getElementById('gallery').style.display='none'" style="display:inline-block;width:auto;padding:10px 30px">✕ Zavřít</div>
+        </div>
+    </div>
+</div>
+
+<!-- GAME -->
+<div id="game">
+<div id="top">
+    <div id="toolbar"></div>
+</div>
+<div id="controls" style="display:flex;align-items:center;gap:8px;padding:4px">
+    <div id="brushSize">
+        <span>Brush:</span>
+        <input type="range" id="bsize" min="1" max="12" value="3">
+        <span id="bval">3</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:4px;font-size:12px">
+        <span>Speed:</span>
+        <input type="range" id="sspeed" min="0" max="10" value="1">
+        <span id="sval">1x</span>
+    </div>
+    <button class="btn" style="background:#446" onclick="paused=!paused;this.textContent=paused?'▶ Play':'⏸ Pause'">⏸ Pause</button>
+    <button class="btn" style="background:#644" onclick="grid.fill(0);neutronAge.fill(0);wireCooldown.fill(0)">🗑 Clear</button>
+    <select id="saveSlot" style="padding:3px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;font-size:11px">
+        <option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option>
+        <option value="4">Slot 4</option><option value="5">Slot 5</option>
+    </select>
+    <button class="btn" style="background:#354" onclick="saveGame()">💾 Save</button>
+    <button class="btn" style="background:#345" onclick="loadGame()">📂 Load</button>
+    <button class="btn" style="background:#433" onclick="backToMenu()">🏠 Menu</button>
+    <button class="btn" style="background:#546" onclick="showGallery()">🌍 Galerie</button>
+</div>
+<canvas id="c"></canvas>
+<div id="info">LMB = kreslit | RMB = mazat | Scroll = brush | P = pauza | C = clear | L = blesk | T = tornado | Q = earthquake | G = gravity flip</div>
+</div><!-- /game -->
+
+<script>
+"use strict";
+
+// ===================== CONFIG =====================
+const W = 400;     // grid width
+const H = 300;     // grid height
+const SCALE = 2;   // pixel scale
+const C = document.getElementById('c');
+const X = C.getContext('2d');
+C.width = W * SCALE;
+C.height = H * SCALE;
+X.imageSmoothingEnabled = false;
+
+// Offscreen buffer
+const buf = document.createElement('canvas');
+buf.width = W; buf.height = H;
+const bx = buf.getContext('2d');
+const imgData = bx.createImageData(W, H);
+const pix = imgData.data;
+
+// ===================== ELEMENTS =====================
+const E = {
+    EMPTY: 0,
+    SAND: 1,
+    WATER: 2,
+    STONE: 3,
+    WOOD: 4,
+    FIRE: 5,
+    SMOKE: 6,
+    OIL: 7,
+    ACID: 8,
+    LAVA: 9,
+    STEAM: 10,
+    PLANT: 11,
+    GUNPOWDER: 12,
+    ICE: 13,
+    SALT: 14,
+    MUD: 15,
+    GLASS: 16,
+    METAL: 17,
+    RUST: 18,
+    SNOW: 19,
+    EMBER: 20,
+    TOXIC: 21,
+    NITRO: 22,
+    CLONE: 23,
+    VOID: 24,
+    SPARK: 25,
+    MERCURY: 26,
+    SEED: 27,
+    WAX: 28,
+    LIQUID_WAX: 29,
+    VIRUS: 30,
+    FUSE: 31,
+    C4: 32,
+    MAGNET: 33,
+    ANT: 34,
+    PHOSPHORUS: 35,
+    LASER: 36,
+    CLOUD: 37,
+    ASH: 38,
+    CHARCOAL: 39,
+    GRAVEL: 40,
+    SLIME: 41,
+    FIREWORK: 42,
+    HELIUM: 43,
+    WIRE: 44,
+    BATTERY: 45,
+    HUMAN: 46,
+    ZOMBIE: 47,
+    CORAL: 48,
+    ALGAE: 49,
+    FISH: 50,
+    BIRD: 51,
+    OBSIDIAN: 52,
+    TAR: 53,
+    NAPALM: 54,
+    COTTON: 55,
+    SOAP: 56,
+    PLAGUE: 57,
+    DRAGON: 58,
+    PORTAL_A: 59,
+    PORTAL_B: 60,
+    RUBBER: 61,
+    THERMITE: 62,
+    FROST: 63,
+    DUST: 64,
+    YEAST: 65,
+    SPONGE: 66,
+    CACTUS: 67,
+    FIREFLY: 68,
+    NEUTRON: 69,
+    ANTIMATTER: 70,
+    BEDROCK: 71,
+    IRON: 72,
+    LEAVES: 73,
+    FAUCET: 74,
+    URANIUM: 75,
+    TURBINE: 76,
+    LIGHT: 77,
+    LAMP: 78,
+    LASER_EMIT: 79,
+    COPPER: 80,
+    TITANIUM: 81,
+    LEAD: 82,
+    GOLD_M: 83,
+    ROCKET: 84,
+    BLACK_HOLE: 85,
+    CONVEYOR_R: 86,
+    CONVEYOR_L: 87,
+    HEATER: 88,
+    COOLER: 89,
+    DYNAMITE: 90,
+    GAS: 91,
+    LIFE: 92,
+    DIAMOND: 93,
+    QUICKSAND: 94,
+    MIRROR: 95,
+    BOMB: 96,
+    ACID_CLOUD: 97,
+    CORRUPT: 98,
+    ERASER: 99,
+    PURIFY: 100,
+    MOLTEN: 101,
+    RADIATION: 102,
+    CLAY: 103,
+    BRICK: 104,
+    TORCH: 105,
+    REPULSOR: 106,
+    CONCRETE: 107,
+    CONCRETE_DRY: 108,
+};
+
+const ELEMS = [
+    // — Prášky & Zeminy —
+    { id: -1, name: '▸ PRÁŠKY & ZEMINY', group: true },
+    { id: E.SAND, name: 'Sand', col: '#e8c84a', key: '1' },
+    { id: E.MUD, name: 'Mud', col: '#6b4226', key: '' },
+    { id: E.CLAY, name: 'Clay', col: '#aa7744', key: '' },
+    { id: E.GRAVEL, name: 'Gravel', col: '#777', key: '' },
+    { id: E.DUST, name: 'Dust', col: '#bbaa88', key: '' },
+    { id: E.SALT, name: 'Salt', col: '#f0f0f0', key: '' },
+    { id: E.QUICKSAND, name: 'Quicksand', col: '#ccaa66', key: '' },
+    // — Kapaliny —
+    { id: -1, name: '▸ KAPALINY', group: true },
+    { id: E.WATER, name: 'Water', col: '#3388dd', key: '2' },
+    { id: E.OIL, name: 'Oil', col: '#4a3520', key: '5' },
+    { id: E.ACID, name: 'Acid', col: '#44ff44', key: '6' },
+    { id: E.LAVA, name: 'Lava', col: '#ff6600', key: '7' },
+    { id: E.MERCURY, name: 'Mercury', col: '#aabbcc', key: '' },
+    { id: E.TAR, name: 'Tar', col: '#1a1a1a', key: '' },
+    { id: E.SLIME, name: 'Slime', col: '#44cc44', key: '' },
+    { id: E.WAX, name: 'Wax', col: '#f5e0a0', key: '' },
+    { id: E.MOLTEN, name: 'Molten', col: '#ff8833', key: '' },
+    // — Pevné bloky —
+    { id: -1, name: '▸ PEVNÉ BLOKY', group: true },
+    { id: E.STONE, name: 'Stone', col: '#888', key: '3' },
+    { id: E.WOOD, name: 'Wood', col: '#8B5E3C', key: '4' },
+    { id: E.GLASS, name: 'Glass', col: '#d0e8ff', key: '' },
+    { id: E.BRICK, name: 'Brick', col: '#cc4433', key: '' },
+    { id: E.OBSIDIAN, name: 'Obsidian', col: '#221133', key: '' },
+    { id: E.RUBBER, name: 'Rubber', col: '#333344', key: '' },
+    { id: E.CONCRETE, name: 'Concrete', col: '#999988', key: '' },
+    { id: E.CONCRETE_DRY, name: 'HardCncr', col: '#aaaaaa', key: '' },
+    { id: E.BEDROCK, name: 'Bedrock', col: '#333', key: '' },
+    { id: E.MIRROR, name: 'Mirror', col: '#eeeeff', key: '' },
+    // — Kovy —
+    { id: -1, name: '▸ KOVY', group: true },
+    { id: E.METAL, name: 'Metal', col: '#99aacc', key: '' },
+    { id: E.IRON, name: 'Iron', col: '#ccbbaa', key: '' },
+    { id: E.COPPER, name: 'Copper', col: '#cc7744', key: '' },
+    { id: E.GOLD_M, name: 'Gold', col: '#ffcc00', key: '' },
+    { id: E.LEAD, name: 'Lead', col: '#667788', key: '' },
+    { id: E.TITANIUM, name: 'Titanium', col: '#99aabb', key: '' },
+    { id: E.DIAMOND, name: 'Diamond', col: '#aaddff', key: '' },
+    // — Počasí & Led —
+    { id: -1, name: '▸ POČASÍ & LED', group: true },
+    { id: E.ICE, name: 'Ice', col: '#aaeeff', key: '' },
+    { id: E.SNOW, name: 'Snow', col: '#f0f5ff', key: '' },
+    { id: E.CLOUD, name: 'Cloud', col: '#ddeeff', key: '' },
+    { id: E.FROST, name: 'Frost', col: '#ccddff', key: '' },
+    // — Fire & Explosives —
+    { id: -1, name: '▸ OHEŇ & VÝBUŠNINY', group: true },
+    { id: E.FIRE, name: 'Fire', col: '#ff4400', key: '8' },
+    { id: E.TORCH, name: 'Torch', col: '#ffaa22', key: '' },
+    { id: E.EMBER, name: 'Ember', col: '#cc4400', key: '' },
+    { id: E.CHARCOAL, name: 'Charcoal', col: '#333', key: '' },
+    { id: E.GUNPOWDER, name: 'Gunpowder', col: '#555', key: '9' },
+    { id: E.DYNAMITE, name: 'Dynamite', col: '#cc3333', key: '' },
+    { id: E.NITRO, name: 'Nitro', col: '#ccaa22', key: '' },
+    { id: E.C4, name: 'C4', col: '#ddcc88', key: '' },
+    { id: E.BOMB, name: 'Bomb', col: '#aa2222', key: '' },
+    { id: E.NAPALM, name: 'Napalm', col: '#ff8800', key: '' },
+    { id: E.THERMITE, name: 'Thermite', col: '#aa4422', key: '' },
+    { id: E.DRAGON, name: 'Dragonfire', col: '#ff2266', key: '' },
+    { id: E.PHOSPHORUS, name: 'Phosphorus', col: '#ccff66', key: '' },
+    { id: E.FUSE, name: 'Fuse', col: '#cc6633', key: '' },
+    { id: E.FIREWORK, name: 'Firework', col: '#ff3388', key: '' },
+    { id: E.ROCKET, name: 'Rocket', col: '#cc4444', key: '' },
+    // — Electrical ⚡ —
+    { id: -1, name: '▸ ELEKTŘINA', group: true },
+    { id: E.WIRE, name: 'Wire', col: '#cc8800', key: '' },
+    { id: E.COPPER, name: 'Cu Wire', col: '#cc7744', key: '' },
+    { id: E.BATTERY, name: 'Battery', col: '#88cc22', key: '' },
+    { id: E.SPARK, name: 'Spark', col: '#ffff44', key: '0' },
+    { id: E.LAMP, name: 'Lamp', col: '#ffdd44', key: '' },
+    { id: E.LASER_EMIT, name: 'LaserGun', col: '#cc0000', key: '' },
+    { id: E.TURBINE, name: 'Turbine', col: '#888899', key: '' },
+    { id: E.MAGNET, name: 'Magnet', col: '#cc2222', key: '' },
+    // — Nuclear ☢ —
+    { id: -1, name: '▸ JADERNÉ', group: true },
+    { id: E.URANIUM, name: 'Uranium', col: '#44cc44', key: '' },
+    { id: E.NEUTRON, name: 'Neutron', col: '#44aaff', key: '' },
+    { id: E.ANTIMATTER, name: 'Antimatter', col: '#ff00ff', key: '' },
+    { id: E.RADIATION, name: 'Radiation', col: '#33ff33', key: '' },
+    // — Nature —
+    { id: -1, name: '▸ PŘÍRODA', group: true },
+    { id: E.PLANT, name: 'Plant', col: '#22aa22', key: '' },
+    { id: E.LEAVES, name: 'Leaves', col: '#228833', key: '' },
+    { id: E.SEED, name: 'Seed', col: '#886622', key: '' },
+    { id: E.ALGAE, name: 'Algae', col: '#44aa55', key: '' },
+    { id: E.CORAL, name: 'Coral', col: '#ff6688', key: '' },
+    { id: E.CACTUS, name: 'Cactus', col: '#228833', key: '' },
+    { id: E.COTTON, name: 'Cotton', col: '#f5f0e8', key: '' },
+    { id: E.YEAST, name: 'Yeast', col: '#ddcc88', key: '' },
+    // — Creatures —
+    { id: -1, name: '▸ TVOROVÉ', group: true },
+    { id: E.ANT, name: 'Ant', col: '#331100', key: '' },
+    { id: E.FISH, name: 'Fish', col: '#ff8844', key: '' },
+    { id: E.BIRD, name: 'Bird', col: '#eecc44', key: '' },
+    { id: E.FIREFLY, name: 'Firefly', col: '#aaff33', key: '' },
+    { id: E.HUMAN, name: 'Human', col: '#ffaa66', key: '' },
+    { id: E.ZOMBIE, name: 'Zombie', col: '#559922', key: '' },
+    // — Bio & Hrozby —
+    { id: -1, name: '▸ BIO & HROZBY', group: true },
+    { id: E.VIRUS, name: 'Virus', col: '#aa00aa', key: '' },
+    { id: E.PLAGUE, name: 'Plague', col: '#556600', key: '' },
+    { id: E.TOXIC, name: 'Toxic', col: '#88cc00', key: '' },
+    { id: E.ACID_CLOUD, name: 'AcidCloud', col: '#88cc44', key: '' },
+    { id: E.CORRUPT, name: 'Corrupt', col: '#440055', key: '' },
+    { id: E.PURIFY, name: 'Purify', col: '#eeffaa', key: '' },
+    // — Plyny —
+    { id: -1, name: '▸ PLYNY', group: true },
+    { id: E.GAS, name: 'Gas', col: '#aabb99', key: '' },
+    { id: E.HELIUM, name: 'Helium', col: '#ffccee', key: '' },
+    { id: E.SOAP, name: 'Soap', col: '#ddccff', key: '' },
+    { id: E.SPONGE, name: 'Sponge', col: '#dddd44', key: '' },
+    // — Special —
+    { id: -1, name: '▸ SPECIÁLNÍ', group: true },
+    { id: E.CLONE, name: 'Clone', col: '#cc44cc', key: '' },
+    { id: E.VOID, name: 'Void', col: '#110022', key: '' },
+    { id: E.BLACK_HOLE, name: 'BlackHole', col: '#000011', key: '' },
+    { id: E.REPULSOR, name: 'Repulsor', col: '#44aaff', key: '' },
+    { id: E.PORTAL_A, name: 'Portal A', col: '#ff6600', key: '' },
+    { id: E.PORTAL_B, name: 'Portal B', col: '#0066ff', key: '' },
+    { id: E.FAUCET, name: 'Faucet', col: '#4466cc', key: '' },
+    { id: E.LASER, name: 'Laser', col: '#ff0000', key: '' },
+    { id: E.LIGHT, name: 'Light', col: '#ffffaa', key: '' },
+    { id: E.CONVEYOR_R, name: 'Belt →', col: '#886644', key: '' },
+    { id: E.CONVEYOR_L, name: '← Belt', col: '#886644', key: '' },
+    { id: E.HEATER, name: 'Heater', col: '#ff4422', key: '' },
+    { id: E.COOLER, name: 'Cooler', col: '#2244ff', key: '' },
+    { id: E.LIFE, name: 'Life', col: '#00ff88', key: '' },
+    // — Eraser —
+    { id: E.ERASER, name: 'Eraser', col: '#222', key: 'x' },
+];
+
+// ===================== GRID =====================
+let grid = new Uint8Array(W * H);
+let updated = new Uint8Array(W * H); // frame flag to avoid double-updates
+let neutronAge = new Uint8Array(W * H); // lifetime tracker for neutrons
+let wireCooldown = new Uint8Array(W * H); // cooldown for conductors after spark passes
+let frameN = 0;
+
+function idx(x, y) { return y * W + x; }
+function get(x, y) { return (x < 0 || x >= W || y < 0 || y >= H) ? E.STONE : grid[idx(x, y)]; }
+function set(x, y, v) { if (x >= 0 && x < W && y >= 0 && y < H) grid[idx(x, y)] = v; }
+function swap(x1, y1, x2, y2) {
+    if (x2 < 0 || x2 >= W || y2 < 0 || y2 >= H) return false;
+    let i1 = idx(x1, y1), i2 = idx(x2, y2);
+    let t = grid[i1]; grid[i1] = grid[i2]; grid[i2] = t;
+    updated[i2] = frameN & 0xff;
+    return true;
+}
+function isEmpty(x, y) { return get(x, y) === E.EMPTY; }
+const SOLID = new Set([E.SAND,E.STONE,E.WOOD,E.LEAVES,E.ICE,E.GLASS,E.METAL,E.RUST,E.WAX,E.FUSE,E.C4,E.MAGNET,E.CHARCOAL,E.GRAVEL,E.WIRE,E.BATTERY,E.CLONE,E.VOID,E.OBSIDIAN,E.RUBBER,E.CACTUS,E.SPONGE,E.CORAL,E.SALT,E.THERMITE,E.BEDROCK,E.FAUCET,E.URANIUM,E.TURBINE,E.LAMP,E.LASER_EMIT,E.COPPER,E.TITANIUM,E.LEAD,E.GOLD_M,E.IRON,E.BLACK_HOLE,E.CONVEYOR_R,E.CONVEYOR_L,E.HEATER,E.COOLER,E.DYNAMITE,E.DIAMOND,E.MIRROR,E.BOMB,E.GUNPOWDER,E.SNOW,E.DUST,E.PHOSPHORUS,E.CLAY,E.BRICK,E.TORCH,E.REPULSOR,E.CONCRETE,E.CONCRETE_DRY]);
+function isFlammable(x, y) { let b = get(x, y); return b === E.WOOD || b === E.OIL || b === E.PLANT || b === E.GUNPOWDER || b === E.NITRO || b === E.WAX || b === E.FUSE || b === E.PHOSPHORUS || b === E.CHARCOAL || b === E.SLIME || b === E.COTTON || b === E.TAR || b === E.NAPALM || b === E.ALGAE || b === E.DUST || b === E.THERMITE || b === E.C4 || b === E.SPONGE || b === E.RUBBER || b === E.DYNAMITE || b === E.GAS || b === E.LEAVES || b === E.SEED || b === E.YEAST; }
+function isSolid(x, y) { return SOLID.has(get(x, y)); }
+const ACID_IMMUNE = new Set([E.EMPTY,E.ACID,E.GLASS,E.WATER,E.OBSIDIAN,E.BEDROCK,E.TITANIUM,E.VOID,E.CLONE,E.BLACK_HOLE,E.URANIUM,E.TURBINE,E.FAUCET,E.PORTAL_A,E.PORTAL_B,E.CONVEYOR_R,E.CONVEYOR_L,E.HEATER,E.COOLER,E.LAMP,E.LASER_EMIT,E.BATTERY,E.DIAMOND,E.MIRROR,E.GOLD_M,E.RUBBER]);
+
+// ===================== ELEMENT COLORS (OPTIMIZED) =====================
+// Pre-computed base colors [r,g,b] — no Math.sin/random per pixel
+const BASE_COL = new Uint8Array(256 * 3); // type * 3 = r,g,b
+function setBC(t,r,g,b){ BASE_COL[t*3]=r; BASE_COL[t*3+1]=g; BASE_COL[t*3+2]=b; }
+setBC(E.SAND,210,190,70); setBC(E.WATER,40,110,190); setBC(E.STONE,128,128,128);
+setBC(E.WOOD,130,70,40); setBC(E.FIRE,230,120,15); setBC(E.SMOKE,70,70,75);
+setBC(E.OIL,55,40,22); setBC(E.ACID,40,190,40); setBC(E.LAVA,210,100,20);
+setBC(E.STEAM,195,195,210); setBC(E.PLANT,30,150,30); setBC(E.GUNPOWDER,65,60,55);
+setBC(E.ICE,180,225,250); setBC(E.SALT,240,240,240); setBC(E.MUD,85,55,30);
+setBC(E.GLASS,210,230,245); setBC(E.METAL,140,145,165); setBC(E.RUST,150,65,25);
+setBC(E.SNOW,240,242,248); setBC(E.EMBER,180,50,5); setBC(E.TOXIC,70,170,10);
+setBC(E.NITRO,190,155,40); setBC(E.CLONE,160,50,180); setBC(E.VOID,10,2,20);
+setBC(E.SPARK,255,220,80); setBC(E.MERCURY,165,175,195); setBC(E.SEED,110,75,20);
+setBC(E.WAX,245,225,155); setBC(E.LIQUID_WAX,225,195,95); setBC(E.VIRUS,170,10,190);
+setBC(E.FUSE,185,85,35); setBC(E.C4,215,205,125); setBC(E.MAGNET,190,30,30);
+setBC(E.ANT,45,18,2); setBC(E.PHOSPHORUS,190,240,75); setBC(E.LASER,255,30,30);
+setBC(E.CLOUD,215,220,235); setBC(E.ASH,85,80,75); setBC(E.CHARCOAL,40,35,28);
+setBC(E.GRAVEL,110,105,100); setBC(E.SLIME,50,190,65); setBC(E.FIREWORK,220,120,170);
+setBC(E.HELIUM,230,200,235); setBC(E.WIRE,185,125,25); setBC(E.BATTERY,85,195,45);
+setBC(E.HUMAN,240,185,135); setBC(E.ZOMBIE,80,155,40); setBC(E.CORAL,230,90,130);
+setBC(E.ALGAE,35,155,55); setBC(E.FISH,240,135,45); setBC(E.BIRD,225,205,60);
+setBC(E.OBSIDIAN,30,15,35); setBC(E.TAR,22,20,16); setBC(E.NAPALM,240,130,20);
+setBC(E.COTTON,242,238,230); setBC(E.SOAP,220,205,250); setBC(E.PLAGUE,70,85,5);
+setBC(E.DRAGON,255,55,100); setBC(E.PORTAL_A,230,90,10); setBC(E.PORTAL_B,10,90,230);
+setBC(E.RUBBER,50,50,65); setBC(E.THERMITE,165,65,30); setBC(E.FROST,190,210,255);
+setBC(E.DUST,180,165,130); setBC(E.YEAST,215,200,130); setBC(E.SPONGE,215,215,60);
+setBC(E.CACTUS,35,130,50); setBC(E.FIREFLY,160,240,50); setBC(E.NEUTRON,70,170,255);
+setBC(E.ANTIMATTER,220,30,220);
+setBC(E.BEDROCK,50,50,50); setBC(E.IRON,200,190,170); setBC(E.LEAVES,30,140,35);
+setBC(E.FAUCET,60,90,190);
+setBC(E.URANIUM,50,190,50); setBC(E.TURBINE,130,130,145);
+setBC(E.LIGHT,255,255,170); setBC(E.LAMP,200,170,60); setBC(E.LASER_EMIT,180,20,20);
+setBC(E.COPPER,195,115,65); setBC(E.TITANIUM,165,180,195); setBC(E.LEAD,95,110,130);
+setBC(E.GOLD_M,240,195,30);
+setBC(E.ROCKET,195,60,55); setBC(E.BLACK_HOLE,5,5,15); setBC(E.CONVEYOR_R,130,95,65);
+setBC(E.CONVEYOR_L,130,95,65); setBC(E.HEATER,220,60,30); setBC(E.COOLER,30,60,220);
+setBC(E.DYNAMITE,190,45,40); setBC(E.GAS,160,175,140);
+setBC(E.LIFE,20,240,120);
+setBC(E.DIAMOND,170,220,255); setBC(E.QUICKSAND,195,165,95);
+setBC(E.MIRROR,230,230,245); setBC(E.BOMB,170,30,30); setBC(E.ACID_CLOUD,130,195,65);
+setBC(E.CORRUPT,55,0,75);
+setBC(E.PURIFY,230,255,160);
+setBC(E.MOLTEN,255,130,40);
+setBC(E.RADIATION,40,255,40);
+setBC(E.CLAY,160,110,60); setBC(E.BRICK,190,65,45); setBC(E.TORCH,255,170,30);
+setBC(E.REPULSOR,60,160,255); setBC(E.CONCRETE,150,148,130); setBC(E.CONCRETE_DRY,165,165,160);
+
+// Fast hash for spatial variation (no Math.sin)
+function hash8(x, y) { return ((x * 374761393 + y * 668265263) >>> 16) & 31; }
+
+// Animated types that need flicker
+const ANIM = new Set([E.FIRE,E.LAVA,E.EMBER,E.SPARK,E.NAPALM,E.FIREWORK,E.DRAGON,E.LASER,E.NEUTRON,E.ANTIMATTER,E.FIREFLY,E.URANIUM,E.LIGHT,E.ROCKET,E.BLACK_HOLE,E.CORRUPT,E.PURIFY,E.MOLTEN,E.RADIATION,E.TORCH,E.REPULSOR]);
+
+function drawPixel(i, type, x, y) {
+    let bi = type * 3;
+    let r = BASE_COL[bi], g = BASE_COL[bi+1], b = BASE_COL[bi+2];
+    // Add spatial variation via hash (cheap)
+    let h = hash8(x, y);
+    r = r + h - 16; g = g + h - 16; b = b + h - 16;
+    // Animated elements get random flicker
+    if (ANIM.has(type)) {
+        let f = ((frameN * 7 + x * 13 + y * 17) & 63) - 32;
+        r += f; g += (f >> 1);
+    }
+    // Clamp
+    if (r < 0) r = 0; if (r > 255) r = 255;
+    if (g < 0) g = 0; if (g > 255) g = 255;
+    if (b < 0) b = 0; if (b > 255) b = 255;
+    pix[i] = r; pix[i+1] = g; pix[i+2] = b; pix[i+3] = 255;
+}
+
+// ===================== SIMULATION =====================
+function simulate() {
+    frameN++;
+    // Black hole growth (once per frame, globally)
+    growBlackHoles();
+    // Scan bottom-to-top so gravity works correctly; alternate L/R direction
+    let dir = (frameN & 1) ? 1 : -1;
+
+    for (let y = H - 1; y >= 0; y--) {
+        let startX = dir > 0 ? 0 : W - 1;
+        for (let i = 0; i < W; i++) {
+            let x = startX + i * dir;
+            if (x < 0 || x >= W) continue;
+            let p = grid[idx(x, y)];
+            if (p === E.EMPTY || (updated[idx(x, y)] & 0xff) === (frameN & 0xff)) continue;
+
+            switch (p) {
+                case E.SAND: simPowder(x, y); break;
+                case E.WATER: simWater(x, y); break;
+                case E.FIRE: simFire(x, y); break;
+                case E.SMOKE: simGas(x, y, 0.05); break;
+                case E.OIL: simOil(x, y); break;
+                case E.ACID: simAcid(x, y); break;
+                case E.LAVA: simLava(x, y); break;
+                case E.STEAM: simSteam(x, y); break;
+                case E.PLANT: simPlant(x, y); break;
+                case E.GUNPOWDER: simGunpowder(x, y); break;
+                case E.SALT: simSalt(x, y); break;
+                case E.MUD: simMud(x, y); break;
+                case E.METAL: simMetal(x, y); break;
+                case E.RUST: simPowder(x, y); break;
+                case E.SNOW: simSnow(x, y); break;
+                case E.EMBER: simEmber(x, y); break;
+                case E.TOXIC: simGas(x, y, 0.02); break;
+                case E.NITRO: simNitro(x, y); break;
+                case E.CLONE: simClone(x, y); break;
+                case E.VOID: simVoid(x, y); break;
+                case E.SPARK: simSpark(x, y); break;
+                case E.MERCURY: simMercury(x, y); break;
+                case E.SEED: simSeed(x, y); break;
+                case E.WAX: simWax(x, y); break;
+                case E.LIQUID_WAX: simLiquidWax(x, y); break;
+                case E.VIRUS: simVirus(x, y); break;
+                case E.FUSE: simFuse(x, y); break;
+                case E.C4: simC4(x, y); break;
+                case E.MAGNET: simMagnet(x, y); break;
+                case E.ANT: simAnt(x, y); break;
+                case E.PHOSPHORUS: simPhosphorus(x, y); break;
+                case E.LASER: simLaser(x, y); break;
+                case E.CLOUD: simCloud(x, y); break;
+                case E.ASH: simAsh(x, y); break;
+                case E.CHARCOAL: simCharcoal(x, y); break;
+                case E.GRAVEL: simGravel(x, y); break;
+                case E.SLIME: simSlime(x, y); break;
+                case E.FIREWORK: simFirework(x, y); break;
+                case E.HELIUM: simGas(x, y, 0.01); break;
+                case E.WIRE: simWire(x, y); break;
+                case E.BATTERY: simBattery(x, y); break;
+                case E.HUMAN: simHuman(x, y); break;
+                case E.ZOMBIE: simZombie(x, y); break;
+                case E.CORAL: simCoral(x, y); break;
+                case E.ALGAE: simAlgae(x, y); break;
+                case E.FISH: simFish(x, y); break;
+                case E.BIRD: simBird(x, y); break;
+                case E.TAR: simTar(x, y); break;
+                case E.NAPALM: simNapalm(x, y); break;
+                case E.COTTON: simCotton(x, y); break;
+                case E.SOAP: simSoap(x, y); break;
+                case E.PLAGUE: simPlague(x, y); break;
+                case E.DRAGON: simDragon(x, y); break;
+                case E.PORTAL_A: simPortal(x, y, E.PORTAL_A, E.PORTAL_B); break;
+                case E.PORTAL_B: simPortal(x, y, E.PORTAL_B, E.PORTAL_A); break;
+                case E.RUBBER: simRubber(x, y); break;
+                case E.THERMITE: simThermite(x, y); break;
+                case E.FROST: simFrost(x, y); break;
+                case E.DUST: simDust(x, y); break;
+                case E.YEAST: simYeast(x, y); break;
+                case E.SPONGE: simSponge(x, y); break;
+                case E.CACTUS: simCactus(x, y); break;
+                case E.FIREFLY: simFirefly(x, y); break;
+                case E.NEUTRON: simNeutron(x, y); break;
+                case E.ANTIMATTER: simAntimatter(x, y); break;
+                case E.FAUCET: simFaucet(x, y); break;
+                case E.URANIUM: simUranium(x, y); break;
+                case E.TURBINE: simTurbine(x, y); break;
+                case E.LIGHT: simLight(x, y); break;
+                case E.LAMP: simLamp(x, y); break;
+                case E.LASER_EMIT: simLaserEmit(x, y); break;
+                case E.COPPER: simCopper(x, y); break;
+                case E.TITANIUM: break; // static, indestructible
+                case E.ICE: simIce(x, y); break;
+                case E.DIAMOND: simDiamondGrow(x, y); break;
+                case E.LEAD: simLead(x, y); break;
+                case E.GOLD_M: simGoldM(x, y); break;
+                case E.IRON: simIron(x, y); break;
+                case E.ROCKET: simRocket(x, y); break;
+                case E.BLACK_HOLE: simBlackHole(x, y); break;
+                case E.CONVEYOR_R: simConveyor(x, y, 1); break;
+                case E.CONVEYOR_L: simConveyor(x, y, -1); break;
+                case E.HEATER: simHeater(x, y); break;
+                case E.COOLER: simCooler(x, y); break;
+                case E.DYNAMITE: simDynamite(x, y); break;
+                case E.GAS: simGasNatural(x, y); break;
+                case E.LIFE: simLife(x, y); break;
+                case E.QUICKSAND: simQuicksand(x, y); break;
+                case E.MIRROR: simMirror(x, y); break;
+                case E.BOMB: simBomb(x, y); break;
+                case E.ACID_CLOUD: simAcidCloud(x, y); break;
+                case E.CORRUPT: simCorrupt(x, y); break;
+                case E.PURIFY: simPurify(x, y); break;
+                case E.MOLTEN: simMolten(x, y); break;
+                case E.RADIATION: simRadiation(x, y); break;
+                case E.CLAY: simCite(x, y); break;
+                case E.TORCH: simTorch(x, y); break;
+                case E.REPULSOR: simRepulsor(x, y); break;
+                case E.CONCRETE: simConcrete(x, y); break;
+                // STONE, WOOD, ICE, GLASS, OBSIDIAN, DIAMOND, BRICK, CONCRETE_DRY = static, no sim
+            }
+        }
+    }
+}
+
+function simPowder(x, y) {
+    if (y >= H - 1) return;
+    let below = get(x, y + 1);
+    // Fall through empty, water, oil, acid
+    if (below === E.EMPTY || below === E.WATER || below === E.OIL || below === E.ACID) {
+        swap(x, y, x, y + 1); return;
+    }
+    // Diagonal slide
+    let d = Math.random() < 0.5 ? -1 : 1;
+    let bl = get(x + d, y + 1), br = get(x - d, y + 1);
+    if (bl === E.EMPTY || bl === E.WATER || bl === E.OIL) { swap(x, y, x + d, y + 1); return; }
+    if (br === E.EMPTY || br === E.WATER || br === E.OIL) { swap(x, y, x - d, y + 1); return; }
+}
+
+function simLiquid(x, y, spread) {
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        // Diagonal down
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+        if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
+    }
+    // Spread sideways
+    let d = Math.random() < 0.5 ? -1 : 1;
+    let range = 1 + Math.floor(Math.random() * spread);
+    for (let s = 1; s <= range; s++) {
+        if (get(x + d * s, y) === E.EMPTY) {
+            swap(x, y, x + d * s, y); return;
+        } else if (get(x + d * s, y) !== E.WATER) break;
+    }
+    // Try other direction
+    for (let s = 1; s <= range; s++) {
+        if (get(x - d * s, y) === E.EMPTY) {
+            swap(x, y, x - d * s, y); return;
+        } else if (get(x - d * s, y) !== E.WATER) break;
+    }
+}
+
+function simWater(x, y) {
+    simLiquid(x, y, 5);
+    // --- NEW MECHANICS ---
+    // Water + Sand = small chance of Mud
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let nx = x + dx, ny = y + dy;
+        let nb = get(nx, ny);
+        if (nb === E.SAND && Math.random() < 0.002) {
+            set(nx, ny, E.MUD); return;
+        }
+        // Water corrodes iron faster than metal
+        if (nb === E.IRON && Math.random() < 0.008) {
+            set(nx, ny, E.RUST); return;
+        }
+    }
+}
+
+function simOil(x, y) {
+    // Oil floats on water — lighter density
+    if (y > 0) {
+        let above = get(x, y - 1);
+        if (above === E.WATER) { swap(x, y, x, y - 1); return; }
+    }
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+        if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
+    }
+    // Spread sideways
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (get(x + d, y) === E.EMPTY) { swap(x, y, x + d, y); return; }
+    if (get(x - d, y) === E.EMPTY) { swap(x, y, x - d, y); return; }
+    // Oil burns with thick black smoke near fire
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if ((nb === E.FIRE || nb === E.EMBER || nb === E.LAVA || nb === E.TORCH) && Math.random() < 0.08) {
+            set(x, y, E.FIRE);
+            // Emit extra smoke above
+            if (y > 1 && isEmpty(x, y - 1)) set(x, y - 1, E.SMOKE);
+            if (y > 2 && isEmpty(x, y - 2)) set(x, y - 2, E.SMOKE);
+            return;
+        }
+    }
+}
+
+function simFire(x, y) {
+    // Fire rises, burns, and dies — leave ash/charcoal
+    if (Math.random() < 0.06) { set(x, y, E.ASH); return; } // die → ash
+    if (Math.random() < 0.04) { set(x, y, E.SMOKE); return; } // die → smoke
+    if (Math.random() < 0.03) { set(x, y, E.EMPTY); return; } // die
+
+    // Spread fire to flammable neighbors
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let nx = x + dx, ny = y + dy;
+        let nb = get(nx, ny);
+        if (nb === E.WATER || nb === E.ICE) { set(x, y, E.SMOKE); if (nb === E.ICE) set(nx, ny, E.WATER); return; }
+        if (nb === E.HUMAN) { set(nx, ny, E.ASH); continue; } // humans die in fire
+        if (isFlammable(nx, ny) && Math.random() < 0.15) {
+            if (nb === E.GUNPOWDER) { explode(nx, ny, 6); }
+            else if (nb === E.NITRO) { explode(nx, ny, 10); }
+            else if (nb === E.C4) { explode(nx, ny, 12); }
+            else if (nb === E.DYNAMITE) { explode(nx, ny, 10); }
+            else if (nb === E.WAX) { set(nx, ny, E.LIQUID_WAX); }
+            else { set(nx, ny, E.FIRE); }
+        }
+    }
+
+    // Rise
+    if (y > 0 && isEmpty(x, y - 1) && Math.random() < 0.6) {
+        swap(x, y, x, y - 1);
+    }
+}
+
+function simGas(x, y, dieChance) {
+    if (Math.random() < dieChance) { set(x, y, E.EMPTY); return; }
+    // Rise
+    if (y > 0) {
+        if (isEmpty(x, y - 1)) { swap(x, y, x, y - 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y - 1)) { swap(x, y, x + d, y - 1); return; }
+        if (isEmpty(x - d, y - 1)) { swap(x, y, x - d, y - 1); return; }
+    }
+    // Drift sideways
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+}
+
+// --- STEAM: rises like gas, becomes cloud at top edge ---
+function simSteam(x, y) {
+    // At top of screen → become cloud
+    if (y <= 2) { set(x, y, E.CLOUD); return; }
+    // Slowly die
+    if (Math.random() < 0.02) { set(x, y, E.EMPTY); return; }
+    // Rise — can pass through water, oil, acid (bubbling)
+    if (y > 0) {
+        let above = get(x, y - 1);
+        if (above === E.EMPTY || above === E.WATER || above === E.OIL || above === E.ACID) {
+            swap(x, y, x, y - 1); return;
+        }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        let aboveD = get(x + d, y - 1);
+        if (aboveD === E.EMPTY || aboveD === E.WATER || aboveD === E.OIL) {
+            swap(x, y, x + d, y - 1); return;
+        }
+        let aboveD2 = get(x - d, y - 1);
+        if (aboveD2 === E.EMPTY || aboveD2 === E.WATER || aboveD2 === E.OIL) {
+            swap(x, y, x - d, y - 1); return;
+        }
+    }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+}
+
+// --- FAUCET: infinite water source, generates water below ---
+function simFaucet(x, y) {
+    if (y < H - 1 && isEmpty(x, y + 1)) {
+        set(x, y + 1, E.WATER);
+    } else {
+        // Try sides
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y + 1)) set(x + d, y + 1, E.WATER);
+        else if (isEmpty(x - d, y + 1)) set(x - d, y + 1, E.WATER);
+    }
+}
+
+// --- URANIUM: fuel rod, boils water into steam, stable unless hit by external neutron ---
+function simUranium(x, y) {
+    // Spontaneous decay — emit 1-5 neutrons very rarely + radiation
+    if (Math.random() < 0.0002) {
+        let count = 1 + Math.floor(Math.random() * 5);
+        let dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+        for (let ni = 0; ni < count; ni++) {
+            let d = dirs[Math.floor(Math.random() * dirs.length)];
+            let dist = 1 + Math.floor(Math.random() * 3);
+            let nx = x + d[0] * dist, ny = y + d[1] * dist;
+            if (nx >= 0 && nx < W && ny >= 0 && ny < H && isEmpty(nx, ny)) {
+                set(nx, ny, E.NEUTRON);
+                neutronAge[idx(nx, ny)] = 0;
+            }
+        }
+        // Emit radiation burst
+        for (let ri = 0; ri < 3; ri++) {
+            let rd = dirs[Math.floor(Math.random() * dirs.length)];
+            let rdist = 1 + Math.floor(Math.random() * 4);
+            let rx = x + rd[0] * rdist, ry = y + rd[1] * rdist;
+            if (rx >= 0 && rx < W && ry >= 0 && ry < H && isEmpty(rx, ry)) {
+                set(rx, ry, E.RADIATION);
+            }
+        }
+    }
+    // Constant low-level radiation glow
+    if (Math.random() < 0.01) {
+        let rd = [[-1,0],[1,0],[0,-1],[0,1]][Math.floor(Math.random() * 4)];
+        let rx = x + rd[0], ry = y + rd[1];
+        if (rx >= 0 && rx < W && ry >= 0 && ry < H && isEmpty(rx, ry)) {
+            set(rx, ry, E.RADIATION);
+        }
+    }
+    // Boil adjacent water → steam
+    for (let dx2 = -2; dx2 <= 2; dx2++) for (let dy2 = -2; dy2 <= 2; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER && Math.random() < 0.08) {
+            set(x + dx2, y + dy2, E.STEAM);
+        }
+        if (nb === E.ICE && Math.random() < 0.05) {
+            set(x + dx2, y + dy2, E.WATER);
+        }
+        if (nb === E.SNOW && Math.random() < 0.1) {
+            set(x + dx2, y + dy2, E.WATER);
+        }
+        // Radiation kills living things slowly
+        if ((nb === E.HUMAN || nb === E.ANT || nb === E.FISH || nb === E.BIRD || nb === E.FIREFLY) && Math.random() < 0.008) {
+            set(x + dx2, y + dy2, E.ASH);
+        }
+    }
+
+    // CRITICAL MASS — count neutrons in radius 6, if too many → nuclear explosion
+    let neutronCount = 0;
+    for (let dx2 = -6; dx2 <= 6; dx2++) for (let dy2 = -6; dy2 <= 6; dy2++) {
+        if (dx2 * dx2 + dy2 * dy2 > 36) continue;
+        if (get(x + dx2, y + dy2) === E.NEUTRON) neutronCount++;
+    }
+    if (neutronCount >= 3) {
+        // NUCLEAR EXPLOSION — massive detonation
+        explode(x, y, 15);
+        // Spawn neutron shower from the blast
+        for (let i = 0; i < 10; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let dist = 5 + Math.floor(Math.random() * 15);
+            let sx = x + Math.round(Math.cos(angle) * dist);
+            let sy = y + Math.round(Math.sin(angle) * dist);
+            if (sx >= 0 && sx < W && sy >= 0 && sy < H && isEmpty(sx, sy)) {
+                set(sx, sy, E.NEUTRON);
+                neutronAge[idx(sx, sy)] = 0;
+            }
+        }
+        // Radiation fallout from nuclear explosion
+        for (let i = 0; i < 20; i++) {
+            let angle = Math.random() * Math.PI * 2;
+            let dist = 3 + Math.floor(Math.random() * 12);
+            let rx = x + Math.round(Math.cos(angle) * dist);
+            let ry = y + Math.round(Math.sin(angle) * dist);
+            if (rx >= 0 && rx < W && ry >= 0 && ry < H && isEmpty(rx, ry)) {
+                set(rx, ry, E.RADIATION);
+            }
+        }
+        return;
+    }
+    // Fire/lava does NOT destroy uranium — it's heat-resistant
+}
+
+// --- TURBINE: converts steam into spark + conducts spark like wire ---
+function simTurbine(x, y) {
+    let ti2 = idx(x, y);
+    if (wireCooldown[ti2] > 0) { wireCooldown[ti2]--; return; }
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.STEAM) {
+            set(x + dx2, y + dy2, E.EMPTY);
+            wireCooldown[ti2] = 2;
+            // Emit spark on the opposite side or any free neighbor
+            let ox = x - dx2, oy = y - dy2;
+            if (ox >= 0 && ox < W && oy >= 0 && oy < H && isEmpty(ox, oy)) {
+                set(ox, oy, E.SPARK);
+            } else {
+                for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                    if (dx3 === dx2 && dy3 === dy2) continue;
+                    if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); break; }
+                }
+            }
+            return;
+        }
+        // Conduct spark like wire
+        if (nb === E.SPARK) {
+            set(x + dx2, y + dy2, E.EMPTY); // consume spark
+            wireCooldown[ti2] = 2;
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === dx2 && dy3 === dy2) continue;
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); return; }
+            }
+            return;
+        }
+    }
+}
+
+// --- LIGHT: short-lived glow particle, fades quickly ---
+function simLight(x, y) {
+    if (Math.random() < 0.15) { set(x, y, E.EMPTY); return; }
+    // Spread slightly (glow effect)
+    if (Math.random() < 0.1) {
+        let dx2 = Math.floor(Math.random() * 3) - 1;
+        let dy2 = Math.floor(Math.random() * 3) - 1;
+        if (isEmpty(x + dx2, y + dy2)) set(x + dx2, y + dy2, E.LIGHT);
+    }
+}
+
+// --- LAMP: solid block, emits light when powered by spark/wire ---
+function simLamp(x, y) {
+    let powered = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.SPARK) powered = true;
+    }
+    if (powered) {
+        // Emit light in all empty neighbors
+        for (let dx2 = -2; dx2 <= 2; dx2++) for (let dy2 = -2; dy2 <= 2; dy2++) {
+            if (dx2 === 0 && dy2 === 0) continue;
+            if (Math.abs(dx2) + Math.abs(dy2) > 3) continue;
+            if (isEmpty(x + dx2, y + dy2) && Math.random() < 0.3) {
+                set(x + dx2, y + dy2, E.LIGHT);
+            }
+        }
+    }
+}
+
+// --- LASER_EMIT: solid block, shoots laser beam downward when powered ---
+function simLaserEmit(x, y) {
+    let powered = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.SPARK) powered = true;
+    }
+    if (powered) {
+        // Shoot laser beam downward
+        if (y + 1 < H && isEmpty(x, y + 1)) {
+            set(x, y + 1, E.LASER);
+        }
+    }
+}
+
+// --- COPPER: best conductor, corrodes in acid ---
+function simCopper(x, y) {
+    let ci = idx(x, y);
+    if (wireCooldown[ci] > 0) { wireCooldown[ci]--; return; }
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.SPARK) {
+            set(x + dx2, y + dy2, E.EMPTY);
+            wireCooldown[ci] = 1;
+            // Forward propagation
+            let ox = x - dx2, oy = y - dy2;
+            if (ox >= 0 && ox < W && oy >= 0 && oy < H && isEmpty(ox, oy)) {
+                set(ox, oy, E.SPARK); return;
+            }
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === dx2 && dy3 === dy2) continue;
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); return; }
+            }
+            return;
+        }
+        if (nb === E.ACID && Math.random() < 0.02) { set(x, y, E.RUST); return; }
+        if (nb === E.WATER && Math.random() < 0.0005) { set(x, y, E.RUST); return; }
+        if ((nb === E.LAVA || nb === E.THERMITE || nb === E.DRAGON) && Math.random() < 0.03) {
+            set(x, y, E.MOLTEN); return;
+        }
+    }
+}
+
+// --- LEAD: blocks radiation (neutrons pass through other metals but not lead) ---
+function simLead(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        if (get(x + dx2, y + dy2) === E.NEUTRON) {
+            set(x + dx2, y + dy2, E.EMPTY);
+        }
+        let nb = get(x + dx2, y + dy2);
+        // Lead melts into molten metal
+        if ((nb === E.LAVA || nb === E.THERMITE || nb === E.DRAGON) && Math.random() < 0.01) {
+            set(x, y, E.MOLTEN); return;
+        }
+    }
+}
+
+// --- GOLD: doesn't corrode, best conductor ---
+function simGoldM(x, y) {
+    let gi = idx(x, y);
+    if (wireCooldown[gi] > 0) { wireCooldown[gi]--; return; }
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.SPARK) {
+            set(x + dx2, y + dy2, E.EMPTY);
+            wireCooldown[gi] = 1;
+            // Forward propagation
+            let ox = x - dx2, oy = y - dy2;
+            if (ox >= 0 && ox < W && oy >= 0 && oy < H && isEmpty(ox, oy)) {
+                set(ox, oy, E.SPARK); return;
+            }
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === dx2 && dy3 === dy2) continue;
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); return; }
+            }
+            return;
+        }
+    }
+    // Gold melts from dragonfire or thermite
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if ((nb === E.DRAGON || nb === E.THERMITE) && Math.random() < 0.02) {
+            set(x, y, E.MOLTEN); return;
+        }
+        if (nb === E.LAVA && Math.random() < 0.005) {
+            set(x, y, E.MOLTEN); return;
+        }
+    }
+}
+
+function simAcid(x, y) {
+    // Falls like liquid
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        // Dissolve most solids
+        if (!ACID_IMMUNE.has(below)) {
+            if (Math.random() < 0.3) {
+                set(x, y + 1, E.EMPTY);
+                if (Math.random() < 0.5) set(x, y, E.SMOKE); else set(x, y, E.EMPTY);
+                return;
+            }
+        }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+        if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
+    }
+    // Spread
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+
+    // Dissolve neighbors
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        // Acid + Metal/Iron/Copper → Toxic gas
+        if ((nb === E.METAL || nb === E.IRON || nb === E.COPPER) && Math.random() < 0.01) {
+            set(x + dx, y + dy, E.TOXIC);
+            set(x, y, E.SMOKE);
+            return;
+        }
+        if (!ACID_IMMUNE.has(nb) && nb !== E.LAVA && Math.random() < 0.02) {
+            set(x + dx, y + dy, E.EMPTY);
+            if (Math.random() < 0.3) { set(x, y, E.SMOKE); return; }
+        }
+    }
+}
+
+function simLava(x, y) {
+    // Slow liquid
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { if (Math.random() < 0.5) swap(x, y, x, y + 1); return; }
+        if (below === E.WATER) { set(x, y, E.OBSIDIAN); set(x, y + 1, E.STEAM); return; }
+        if (below === E.ICE) { set(x, y + 1, E.WATER); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY && Math.random() < 0.3) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Spread slowly
+    if (Math.random() < 0.15) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Ignite neighbors
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if (nb === E.WATER) { set(x, y, E.OBSIDIAN); set(x + dx, y + dy, E.STEAM); return; }
+        // Lava + Oil = fire explosion
+        if (nb === E.OIL) { set(x + dx, y + dy, E.FIRE); set(x, y, E.FIRE); return; }
+        // Lava melts ice
+        if (nb === E.ICE) { set(x + dx, y + dy, E.STEAM); continue; }
+        // Lava + Sand = Glass
+        if (nb === E.SAND && Math.random() < 0.03) { set(x + dx, y + dy, E.GLASS); continue; }
+        if (isFlammable(x + dx, y + dy) && Math.random() < 0.1) {
+            if (nb === E.GUNPOWDER) explode(x + dx, y + dy, 6);
+            else if (nb === E.NITRO) explode(x + dx, y + dy, 10);
+            else set(x + dx, y + dy, E.FIRE);
+        }
+    }
+}
+
+function simPlant(x, y) {
+    // Grow when touching water
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (get(x + dx, y + dy) === E.WATER && Math.random() < 0.02) {
+            set(x + dx, y + dy, E.PLANT);
+        }
+    }
+}
+
+function simGunpowder(x, y) {
+    // Falls like sand
+    simPowder(x, y);
+}
+
+function simSalt(x, y) {
+    // Falls like sand
+    if (y >= H - 1) return;
+    let below = get(x, y + 1);
+    if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+    if (below === E.WATER) { swap(x, y, x, y + 1); return; }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (get(x + d, y + 1) === E.EMPTY || get(x + d, y + 1) === E.WATER) { swap(x, y, x + d, y + 1); return; }
+    if (get(x - d, y + 1) === E.EMPTY || get(x - d, y + 1) === E.WATER) { swap(x, y, x - d, y + 1); return; }
+
+    // Salt melts ice
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (get(x + dx, y + dy) === E.ICE && Math.random() < 0.05) {
+            set(x + dx, y + dy, E.WATER);
+        }
+    }
+}
+
+function simMud(x, y) {
+    // Falls slowly like thick liquid
+    if (y < H - 1 && Math.random() < 0.4) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY || below === E.WATER) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Dry near heat → Clay
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if ((nb === E.FIRE || nb === E.LAVA || nb === E.HEATER || nb === E.EMBER || nb === E.TORCH) && Math.random() < 0.04) {
+            set(x, y, E.CLAY); return;
+        }
+    }
+}
+
+function simMetal(x, y) {
+    let mi = idx(x, y);
+    if (wireCooldown[mi] > 0) { wireCooldown[mi]--; }
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let nb = get(x + dx, y + dy);
+        if ((nb === E.WATER || nb === E.ACID) && Math.random() < 0.005) {
+            set(x, y, E.RUST); return;
+        }
+        if ((nb === E.LAVA || nb === E.THERMITE || nb === E.DRAGON) && Math.random() < 0.02) {
+            set(x, y, E.MOLTEN); return;
+        }
+        // Conduct spark (slow, with cooldown)
+        if (nb === E.SPARK && wireCooldown[mi] === 0) {
+            set(x + dx, y + dy, E.EMPTY);
+            wireCooldown[mi] = 2;
+            let ox = x - dx, oy = y - dy;
+            if (ox >= 0 && ox < W && oy >= 0 && oy < H && isEmpty(ox, oy)) {
+                set(ox, oy, E.SPARK); return;
+            }
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === dx && dy3 === dy) continue;
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); return; }
+            }
+            return;
+        }
+    }
+}
+
+// --- ICE: melts near heat, cracks under heavy weight ---
+function simIce(x, y) {
+    // Melt near fire/lava/heater
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if ((nb === E.FIRE || nb === E.LAVA || nb === E.EMBER || nb === E.HEATER) && Math.random() < 0.15) {
+            set(x, y, E.WATER); return;
+        }
+    }
+    // Crack under weight — if heavy stuff is piled above
+    let weight = 0;
+    for (let dy = -1; dy >= -5; dy--) {
+        let above = get(x, y + dy);
+        if (above === E.STONE || above === E.METAL || above === E.IRON || above === E.SAND
+            || above === E.GRAVEL || above === E.LEAD) weight++;
+    }
+    if (weight >= 3 && Math.random() < 0.01) {
+        set(x, y, E.WATER); return;
+    }
+}
+
+// --- DIAMOND: slowly grows crystal on adjacent stone ---
+function simDiamondGrow(x, y) {
+    if (Math.random() > 0.001) return; // very rare
+    let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    let d = dirs[Math.floor(Math.random() * dirs.length)];
+    let nx = x + d[0], ny = y + d[1];
+    if (nx >= 0 && nx < W && ny >= 0 && ny < H && get(nx, ny) === E.STONE) {
+        set(nx, ny, E.DIAMOND);
+    }
+}
+
+// --- IRON: rusts in water, melts from extreme heat ---
+function simIron(x, y) {
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let nb = get(x + dx, y + dy);
+        if (nb === E.WATER && Math.random() < 0.008) { set(x, y, E.RUST); return; }
+        if (nb === E.ACID && Math.random() < 0.01) { set(x, y, E.RUST); return; }
+        // Iron melts from lava/thermite/dragon
+        if ((nb === E.LAVA || nb === E.THERMITE || nb === E.DRAGON) && Math.random() < 0.015) {
+            set(x, y, E.MOLTEN); return;
+        }
+    }
+}
+
+// --- MOLTEN METAL: flows like lava, ignites things, solidifies when cooled ---
+function simMolten(x, y) {
+    // Flow like slow liquid
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { if (Math.random() < 0.4) swap(x, y, x, y + 1); return; }
+        if (below === E.WATER) { set(x, y, E.METAL); set(x, y + 1, E.STEAM); return; }
+        if (below === E.ICE) { set(x, y + 1, E.STEAM); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY && Math.random() < 0.2) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Spread slowly
+    if (Math.random() < 0.1) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Ignite flammable neighbors
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if (nb === E.WATER) { set(x, y, E.METAL); set(x + dx, y + dy, E.STEAM); return; }
+        if (isFlammable(x + dx, y + dy) && Math.random() < 0.08) {
+            set(x + dx, y + dy, E.FIRE);
+        }
+    }
+    // Slowly solidify on its own (cool down)
+    if (Math.random() < 0.003) {
+        set(x, y, E.METAL); return;
+    }
+}
+
+function simSnow(x, y) {
+    // Falls slowly like powder
+    if (y >= H - 1) return;
+    if (Math.random() < 0.4) return; // slow
+    let below = get(x, y + 1);
+    if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+    if (below === E.WATER) { set(x, y, E.WATER); set(x, y + 1, E.ICE); return; } // snow + water = ice
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
+    // Melt near fire/lava/heater
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if ((nb === E.FIRE || nb === E.LAVA || nb === E.EMBER || nb === E.HEATER) && Math.random() < 0.2) {
+            set(x, y, E.WATER); return;
+        }
+    }
+    // Snow + Salt = Water (salt melts snow too)
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.SALT && Math.random() < 0.1) {
+            set(x, y, E.WATER); return;
+        }
+    }
+}
+
+function simEmber(x, y) {
+    // Glowing falling particle, ignites things, slowly dies
+    if (Math.random() < 0.02) { set(x, y, E.SMOKE); return; }
+    // Fall
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); }
+        else if (below === E.WATER) { set(x, y, E.STEAM); return; }
+    }
+    // Ignite neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (isFlammable(x + dx2, y + dy2) && Math.random() < 0.08) {
+            let nb = get(x + dx2, y + dy2);
+            if (nb === E.GUNPOWDER || nb === E.NITRO) explode(x + dx2, y + dy2, nb === E.NITRO ? 10 : 6);
+            else set(x + dx2, y + dy2, E.FIRE);
+        }
+    }
+}
+
+function simNitro(x, y) {
+    // Liquid explosive — flows like water, HUGE explosion
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+        if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
+    }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+}
+
+function simClone(x, y) {
+    // Static block: duplicates whatever non-empty particle touches it from above
+    let above = get(x, y - 1);
+    if (above !== E.EMPTY && above !== E.CLONE && above !== E.VOID) {
+        // Emit copy below
+        if (isEmpty(x, y + 1)) set(x, y + 1, above);
+        // Emit copy to sides
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y + 1)) set(x + d, y + 1, above);
+    }
+}
+
+function simVoid(x, y) {
+    // Destroys everything touching it
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb !== E.EMPTY && nb !== E.VOID && nb !== E.CLONE) {
+            set(x + dx2, y + dy2, E.EMPTY);
+        }
+    }
+}
+
+function simSpark(x, y) {
+    // Free spark in air — dies fast
+    if (Math.random() < 0.2) { set(x, y, E.EMPTY); return; }
+    // Interact with neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER) {
+            // Spark dies in water — electrocutes nearby creatures then disappears
+            for (let ex = -2; ex <= 2; ex++) for (let ey = -2; ey <= 2; ey++) {
+                let pc = get(x + ex, y + ey);
+                if ((pc === E.HUMAN || pc === E.FISH || pc === E.ZOMBIE || pc === E.ANT) && Math.random() < 0.4)
+                    set(x + ex, y + ey, E.ASH);
+            }
+            set(x, y, E.EMPTY); return;
+        }
+        if (isFlammable(x + dx2, y + dy2) && Math.random() < 0.25) {
+            let nb2 = get(x + dx2, y + dy2);
+            if (nb2 === E.GUNPOWDER || nb2 === E.NITRO) explode(x + dx2, y + dy2, nb2 === E.NITRO ? 10 : 6);
+            else set(x + dx2, y + dy2, E.FIRE);
+        }
+    }
+    // Move randomly
+    let dx2 = Math.floor(Math.random() * 3) - 1;
+    let dy2 = Math.floor(Math.random() * 3) - 1;
+    if (isEmpty(x + dx2, y + dy2)) swap(x, y, x + dx2, y + dy2);
+}
+
+function simMercury(x, y) {
+    // Heavy liquid — sinks through water, toxic to plants
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY || below === E.WATER || below === E.OIL) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY || get(x + d, y + 1) === E.WATER) { swap(x, y, x + d, y + 1); return; }
+        if (get(x - d, y + 1) === E.EMPTY || get(x - d, y + 1) === E.WATER) { swap(x, y, x - d, y + 1); return; }
+    }
+    // Slow spread
+    if (Math.random() < 0.3) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        let nb = get(x + d, y);
+        if (nb === E.EMPTY || nb === E.WATER) swap(x, y, x + d, y);
+    }
+    // Kill plants
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.PLANT && Math.random() < 0.1) set(x + dx2, y + dy2, E.EMPTY);
+    }
+}
+
+// --- SEED: grows into wood trunk + leaves when watered ---
+function simSeed(x, y) {
+    // Fall like powder
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        if (below === E.WATER) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Grow when touching water
+    let touchWater = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER) { touchWater = true; break; }
+    }
+    if (touchWater && Math.random() < 0.03) {
+        growTree(x, y);
+    }
+}
+
+function growTree(x, y) {
+    let h = 4 + Math.floor(Math.random() * 5);
+    set(x, y, E.WOOD);
+    // Trunk
+    for (let i = 1; i < h; i++) {
+        if (y - i < 0) break;
+        if (get(x, y - i) === E.EMPTY || get(x, y - i) === E.WATER) set(x, y - i, E.WOOD);
+        else break;
+    }
+    // Crown
+    let topY = y - h + 1;
+    for (let lx = -2; lx <= 2; lx++) for (let ly = -3; ly <= 0; ly++) {
+        if (Math.abs(lx) === 2 && Math.abs(ly) >= 2) continue;
+        let px2 = x + lx, py2 = topY + ly;
+        if (px2 >= 0 && px2 < W && py2 >= 0 && py2 < H) {
+            let b = get(px2, py2);
+            if (b === E.EMPTY || b === E.WATER) set(px2, py2, E.LEAVES);
+        }
+    }
+}
+
+// --- WAX: solid, melts near fire/lava ---
+function simWax(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if ((nb === E.FIRE || nb === E.LAVA || nb === E.EMBER) && Math.random() < 0.08) {
+            set(x, y, E.LIQUID_WAX); return;
+        }
+    }
+}
+
+// --- LIQUID WAX: flows slowly, re-solidifies away from heat ---
+function simLiquidWax(x, y) {
+    // Check if near heat
+    let nearHeat = false;
+    for (let dx2 = -2; dx2 <= 2; dx2++) for (let dy2 = -2; dy2 <= 2; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA || nb === E.EMBER) { nearHeat = true; break; }
+    }
+    // Re-solidify if no heat nearby
+    if (!nearHeat && Math.random() < 0.01) { set(x, y, E.WAX); return; }
+    // Flow slowly
+    if (y < H - 1 && Math.random() < 0.5) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    if (Math.random() < 0.2) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+}
+
+// --- VIRUS: infects organic matter, killed by fire/acid/lava ---
+function simVirus(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        // Killed by fire, acid, lava
+        if (nb === E.FIRE || nb === E.ACID || nb === E.LAVA) { set(x, y, E.EMPTY); return; }
+        // Infect organic: wood, plant, ant, seed
+        if ((nb === E.WOOD || nb === E.PLANT || nb === E.ANT || nb === E.SEED) && Math.random() < 0.04) {
+            set(x + dx2, y + dy2, E.VIRUS);
+        }
+    }
+    // Slowly die on its own
+    if (Math.random() < 0.003) set(x, y, E.SMOKE);
+}
+
+// --- FUSE: burns slowly in a chain, triggers C4 ---
+function simFuse(x, y) {
+    // Check if neighbor is fire/ember/spark
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.EMBER || nb === E.SPARK || nb === E.LAVA) {
+            if (Math.random() < 0.15) {
+                set(x, y, E.FIRE);
+                return;
+            }
+        }
+    }
+}
+
+// --- C4: stable explosive, only detonates via fire/spark/fuse ---
+function simC4(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.SPARK || nb === E.EMBER || nb === E.LAVA) {
+            explode(x, y, 12); // massive explosion
+            return;
+        }
+    }
+}
+
+// --- MAGNET: attracts metal, rust, mercury in radius ---
+function simMagnet(x, y) {
+    if (Math.random() < 0.7) return; // only process 30% of frames
+    let radius = 8;
+    for (let dx2 = -radius; dx2 <= radius; dx2 += 2) for (let dy2 = -radius; dy2 <= radius; dy2 += 2) {
+        if (dx2 * dx2 + dy2 * dy2 > radius * radius) continue;
+        let px2 = x + dx2, py2 = y + dy2;
+        let nb = get(px2, py2);
+        if (nb === E.METAL || nb === E.RUST || nb === E.MERCURY || nb === E.IRON || nb === E.COPPER || nb === E.LEAD || nb === E.GOLD_M) {
+            let mx2 = dx2 > 0 ? -1 : dx2 < 0 ? 1 : 0;
+            let my2 = dy2 > 0 ? -1 : dy2 < 0 ? 1 : 0;
+            let nx = px2 + mx2, ny = py2 + my2;
+            if (isEmpty(nx, ny)) swap(px2, py2, nx, ny);
+        }
+    }
+}
+
+// --- ANT: walks on surfaces, eats plant/wood, drowns in water ---
+function simAnt(x, y) {
+    // Gravity
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        if (below === E.WATER || below === E.LAVA || below === E.ACID) { set(x, y, E.EMPTY); return; } // die
+    }
+    // Die from fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA) { set(x, y, E.EMPTY); return; }
+        if (nb === E.VIRUS && Math.random() < 0.1) { set(x, y, E.VIRUS); return; }
+    }
+    // Walk sideways on ground
+    if (Math.random() < 0.3) {
+        let d = ((x * 31 + frameN) % 7 < 3) ? -1 : 1; // semi-persistent direction
+        if (isEmpty(x + d, y) && SOLID.has(get(x + d, y + 1))) {
+            swap(x, y, x + d, y);
+        } else if (isEmpty(x - d, y) && SOLID.has(get(x - d, y + 1))) {
+            swap(x, y, x - d, y);
+        }
+    }
+    // Eat plant/leaves
+    for (let dx2 = -1; dx2 <= 1; dx2++) {
+        let nb = get(x + dx2, y);
+        if ((nb === E.PLANT || nb === E.LEAVES) && Math.random() < 0.02) {
+            set(x + dx2, y, E.EMPTY);
+        }
+    }
+    // Reproduce rarely
+    if (Math.random() < 0.001) {
+        if (isEmpty(x, y - 1)) set(x, y - 1, E.ANT);
+    }
+}
+
+// --- PHOSPHORUS: glows, burns on contact with water, self-ignites ---
+function simPhosphorus(x, y) {
+    // Falls like powder
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Burns in water!
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER) {
+            set(x, y, E.FIRE);
+            set(x + dx2, y + dy2, E.STEAM);
+            return;
+        }
+    }
+    // Random self-ignition
+    if (Math.random() < 0.002) { set(x, y, E.FIRE); }
+}
+
+// --- LASER: travels downward, destroys everything in its path ---
+function simLaser(x, y) {
+    if (Math.random() < 0.06) { set(x, y, E.EMPTY); return; } // fade
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) {
+            set(x, y + 1, E.LASER);
+            if (Math.random() < 0.4) set(x, y, E.EMPTY);
+        } else if (below === E.WATER || below === E.ICE) {
+            set(x, y + 1, E.STEAM);
+        } else if (below !== E.LASER && below !== E.GLASS && below !== E.BEDROCK) {
+            if (below === E.GUNPOWDER || below === E.C4 || below === E.NITRO) {
+                explode(x, y + 1, below === E.C4 ? 12 : below === E.NITRO ? 10 : 6);
+            } else {
+                set(x, y + 1, E.FIRE);
+            }
+            set(x, y, E.EMPTY);
+        }
+    } else {
+        set(x, y, E.EMPTY);
+    }
+}
+
+// --- CLOUD: rises to top, drifts, produces rain ---
+function simCloud(x, y) {
+    // Rise strongly
+    if (y > 2 && Math.random() < 0.5) {
+        let above = get(x, y - 1);
+        if (above === E.EMPTY || above === E.SMOKE || above === E.STEAM) {
+            swap(x, y, x, y - 1); return;
+        }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y - 1) === E.EMPTY) { swap(x, y, x + d, y - 1); return; }
+    }
+    // Drift sideways
+    if (Math.random() < 0.15) {
+        let d = (frameN % 200 < 100) ? 1 : -1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Absorb steam from below
+    for (let dy2 = 1; dy2 <= 2; dy2++) {
+        if (get(x, y + dy2) === E.STEAM) { set(x, y + dy2, E.EMPTY); }
+    }
+    // Produce rain
+    if (Math.random() < 0.008) {
+        for (let dy2 = 1; dy2 <= 3; dy2++) {
+            if (y + dy2 < H && isEmpty(x, y + dy2)) {
+                set(x, y + dy2, E.WATER); break;
+            }
+        }
+    }
+}
+
+// --- ASH: light powder, falls very slowly ---
+function simAsh(x, y) {
+    if (y >= H - 1) return;
+    if (Math.random() < 0.5) return; // very slow
+    let below = get(x, y + 1);
+    if (below === E.EMPTY || below === E.WATER) { swap(x, y, x, y + 1); return; }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (get(x + d, y + 1) === E.EMPTY) swap(x, y, x + d, y + 1);
+}
+
+// --- CHARCOAL: solid, re-burnable, falls ---
+function simCharcoal(x, y) {
+    // Falls like powder
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+}
+
+// --- GRAVEL: heavy, fast-falling powder ---
+function simGravel(x, y) {
+    if (y >= H - 1) return;
+    let below = get(x, y + 1);
+    // Falls through empty and liquids
+    if (below === E.EMPTY || below === E.WATER || below === E.OIL || below === E.ACID) {
+        swap(x, y, x, y + 1);
+        // Fall extra step (heavy/fast)
+        if (y + 2 < H) {
+            let b2 = get(x, y + 2);
+            if (b2 === E.EMPTY || b2 === E.WATER) swap(x, y + 1, x, y + 2);
+        }
+        return;
+    }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (get(x + d, y + 1) === E.EMPTY) swap(x, y, x + d, y + 1);
+}
+
+// --- SLIME: sticky, bouncy goo ---
+function simSlime(x, y) {
+    if (y >= H - 1) return;
+    let below = get(x, y + 1);
+    // Falls slowly
+    if (below === E.EMPTY && Math.random() < 0.6) { swap(x, y, x, y + 1); return; }
+    if (below === E.WATER) { swap(x, y, x, y + 1); return; }
+    // Spread very slowly sideways
+    if (Math.random() < 0.03) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Absorb nearby water → grow
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER && Math.random() < 0.01) {
+            set(x + dx2, y + dy2, E.SLIME);
+        }
+    }
+}
+
+// --- FIREWORK: launches upward, explodes into colorful sparks ---
+function simFirework(x, y) {
+    // Rise fast
+    if (y > 0 && (isEmpty(x, y - 1) || get(x, y - 1) === E.SMOKE || get(x, y - 1) === E.STEAM)) {
+        swap(x, y, x, y - 1);
+        // Slight zigzag
+        if (Math.random() < 0.2) {
+            let d = Math.random() < 0.5 ? -1 : 1;
+            if (isEmpty(x + d, y - 1)) swap(x, y - 1, x + d, y - 1);
+        }
+    } else {
+        // Explode! Colorful sparks
+        fireworkExplode(x, y);
+    }
+    // Trail
+    if (y < H - 1 && isEmpty(x, y + 1) && Math.random() < 0.5) set(x, y + 1, E.SMOKE);
+    // Auto-explode after reaching high enough
+    if (y < 20 && Math.random() < 0.3) fireworkExplode(x, y);
+}
+
+function fireworkExplode(x, y) {
+    set(x, y, E.EMPTY);
+    let radius = 4 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < radius * 6; i++) {
+        let angle = Math.random() * Math.PI * 2;
+        let dist = Math.random() * radius;
+        let px2 = Math.floor(x + Math.cos(angle) * dist);
+        let py2 = Math.floor(y + Math.sin(angle) * dist);
+        if (px2 >= 0 && px2 < W && py2 >= 0 && py2 < H && isEmpty(px2, py2)) {
+            set(px2, py2, E.EMBER);
+        }
+    }
+    // Smoke ring
+    for (let i = 0; i < 8; i++) {
+        let sx2 = x + Math.floor(Math.random() * 6 - 3);
+        let sy2 = y + Math.floor(Math.random() * 4 - 2);
+        if (sx2 >= 0 && sx2 < W && sy2 >= 0 && sy2 < H && isEmpty(sx2, sy2)) set(sx2, sy2, E.SMOKE);
+    }
+}
+
+// --- WIRE: conducts spark reliably along its path ---
+function simWire(x, y) {
+    let wi = idx(x, y);
+    if (wireCooldown[wi] > 0) { wireCooldown[wi]--; return; }
+    // Look for spark in neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        if (get(x + dx2, y + dy2) === E.SPARK) {
+            set(x + dx2, y + dy2, E.EMPTY); // consume spark
+            wireCooldown[wi] = 1;
+            // Emit spark on the opposite side (forward propagation)
+            let ox = x - dx2, oy = y - dy2;
+            if (ox >= 0 && ox < W && oy >= 0 && oy < H && isEmpty(ox, oy)) {
+                set(ox, oy, E.SPARK); return;
+            }
+            // Try other empty neighbors if opposite blocked
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === dx2 && dy3 === dy2) continue;
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (isEmpty(x + dx3, y + dy3)) { set(x + dx3, y + dy3, E.SPARK); return; }
+            }
+            return;
+        }
+    }
+}
+
+// --- BATTERY: generates spark continuously ---
+function simBattery(x, y) {
+    // Emit spark into adjacent empty space
+    if (Math.random() < 0.05) {
+        let dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        let d = dirs[Math.floor(Math.random() * 4)];
+        let nx = x + d[0], ny = y + d[1];
+        let nb = get(nx, ny);
+        // Only emit into empty space
+        if (nb === E.EMPTY) {
+            set(nx, ny, E.SPARK);
+        }
+    }
+    // Water shorts battery → explosion
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER && Math.random() < 0.01) {
+            explode(x, y, 4);
+            return;
+        }
+    }
+}
+
+// --- HUMAN: walks, avoids danger, affected by elements ---
+function simHuman(x, y) {
+    // Gravity
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        // Die in liquids, fire, acid, lava
+        if (below === E.WATER) {
+            // Drown slowly
+            if (Math.random() < 0.05) { set(x, y, E.EMPTY); return; }
+        }
+        if (below === E.LAVA || below === E.ACID) { set(x, y, E.ASH); return; }
+    }
+    // Die from fire, lava, acid neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA) { set(x, y, E.ASH); return; }
+        if (nb === E.ACID) { set(x, y, E.EMPTY); return; }
+        if (nb === E.TOXIC) { if (Math.random() < 0.05) { set(x, y, E.ASH); return; } }
+        if (nb === E.ZOMBIE && Math.random() < 0.15) { set(x, y, E.ZOMBIE); return; } // infected!
+        if (nb === E.VIRUS && Math.random() < 0.08) { set(x, y, E.ZOMBIE); return; }
+    }
+    // Walk
+    if (Math.random() < 0.35) {
+        let d = ((x * 31 + frameN) % 11 < 5) ? 1 : -1;
+        // Avoid danger
+        let aheadBelow = get(x + d, y + 1);
+        let ahead = get(x + d, y);
+        if (ahead === E.FIRE || ahead === E.LAVA || ahead === E.ACID || aheadBelow === E.EMPTY) {
+            d = -d; // turn around
+        }
+        if (isEmpty(x + d, y) && (SOLID.has(get(x + d, y + 1)) || get(x + d, y + 1) === E.WATER)) {
+            swap(x, y, x + d, y);
+        }
+        // Jump over 1-block obstacles
+        else if (SOLID.has(ahead) && isEmpty(x + d, y - 1) && isEmpty(x, y - 1) && Math.random() < 0.3) {
+            set(x, y, E.EMPTY);
+            set(x + d, y - 1, E.HUMAN);
+        }
+    }
+}
+
+// --- ZOMBIE: walks, infects humans, slow, dies in fire ---
+function simZombie(x, y) {
+    // Gravity
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        if (below === E.LAVA || below === E.ACID) { set(x, y, E.ASH); return; }
+    }
+    // Die from fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA) { set(x, y, E.ASH); return; }
+        if (nb === E.ACID) { set(x, y, E.EMPTY); return; }
+    }
+    // Walk toward nearest human (slow)
+    if (Math.random() < 0.2) {
+        let d = 0;
+        // Simple: scan nearby for human
+        for (let scan = 1; scan <= 10; scan++) {
+            if (get(x + scan, y) === E.HUMAN || get(x + scan, y - 1) === E.HUMAN) { d = 1; break; }
+            if (get(x - scan, y) === E.HUMAN || get(x - scan, y - 1) === E.HUMAN) { d = -1; break; }
+        }
+        if (d === 0) d = Math.random() < 0.5 ? 1 : -1; // wander
+        if (isEmpty(x + d, y) && (SOLID.has(get(x + d, y + 1)) || get(x + d, y + 1) === E.WATER)) {
+            swap(x, y, x + d, y);
+        }
+    }
+}
+
+// --- TORNADO tool ---
+function tornado(cx, cy) {
+    let radius = 15, strength = 4;
+    for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) {
+        if (dx * dx + dy * dy > radius * radius) continue;
+        let px2 = cx + dx, py2 = cy + dy;
+        let b = get(px2, py2);
+        if (b === E.EMPTY || b === E.STONE || b === E.BEDROCK || b === E.GLASS || b === E.CLONE || b === E.VOID || b === E.MAGNET) continue;
+        if (Math.random() < 0.15) {
+            // Swirl: move in circular direction + upward
+            let angle = Math.atan2(dy, dx) + Math.PI / 2;
+            let nx = px2 + Math.round(Math.cos(angle) * 2);
+            let ny = py2 + Math.round(Math.sin(angle) * 2) - 1; // upward bias
+            if (nx >= 0 && nx < W && ny >= 0 && ny < H && isEmpty(nx, ny)) {
+                swap(px2, py2, nx, ny);
+            }
+        }
+    }
+}
+
+// --- EARTHQUAKE tool ---
+function earthquake() {
+    // Shake all loose particles, break some stone
+    for (let x = 0; x < W; x++) for (let y = H - 1; y >= 0; y--) {
+        let b = get(x, y);
+        if (b === E.EMPTY || b === E.BEDROCK) continue;
+        // Break stone randomly
+        if (b === E.STONE && Math.random() < 0.01) { set(x, y, E.GRAVEL); continue; }
+        // Shake glass
+        if (b === E.GLASS && Math.random() < 0.02) { set(x, y, E.SAND); continue; }
+        // Jostle loose particles
+        if (b === E.SAND || b === E.GRAVEL || b === E.SALT || b === E.ASH || b === E.CHARCOAL || b === E.GUNPOWDER) {
+            if (Math.random() < 0.3) {
+                let dx2 = Math.floor(Math.random() * 3) - 1;
+                let dy2 = Math.floor(Math.random() * 2); // mostly down/sideways
+                if (isEmpty(x + dx2, y + dy2)) swap(x, y, x + dx2, y + dy2);
+            }
+        }
+    }
+}
+
+// --- CORAL: grows slowly in water, static otherwise ---
+function simCoral(x, y) {
+    let inWater = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER) inWater = true;
+    }
+    if (inWater && Math.random() < 0.003) {
+        let d = Math.floor(Math.random() * 4);
+        let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        let nx = x + dirs[d][0], ny = y + dirs[d][1];
+        if (get(nx, ny) === E.WATER) set(nx, ny, E.CORAL);
+    }
+    // Die without water
+    if (!inWater && Math.random() < 0.001) set(x, y, E.SAND);
+}
+
+// --- ALGAE: grows in water, produces oxygen bubbles, edible by fish ---
+function simAlgae(x, y) {
+    let inWater = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER) inWater = true;
+    }
+    if (inWater && Math.random() < 0.005) {
+        let d = Math.floor(Math.random() * 4);
+        let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        let nx = x + dirs[d][0], ny = y + dirs[d][1];
+        if (get(nx, ny) === E.WATER) set(nx, ny, E.ALGAE);
+    }
+    // Produce bubbles (steam rises through water)
+    if (inWater && Math.random() < 0.002 && y > 0 && get(x, y - 1) === E.WATER) {
+        set(x, y - 1, E.STEAM);
+    }
+    // Die without water
+    if (!inWater && Math.random() < 0.005) set(x, y, E.ASH);
+}
+
+// --- FISH: swims in water, eats algae, avoids lava/acid ---
+function simFish(x, y) {
+    let inWater = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER) inWater = true;
+    }
+    if (!inWater) {
+        // Out of water — die slowly
+        if (Math.random() < 0.03) { set(x, y, E.ASH); return; }
+        // Fall
+        if (y < H - 1 && isEmpty(x, y + 1)) { swap(x, y, x, y + 1); return; }
+        return;
+    }
+    // Swim randomly
+    if (Math.random() < 0.4) {
+        let dx2 = Math.floor(Math.random() * 3) - 1;
+        let dy2 = Math.floor(Math.random() * 3) - 1;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER) swap(x, y, x + dx2, y + dy2);
+        // Eat algae
+        else if (nb === E.ALGAE) { set(x + dx2, y + dy2, E.WATER); }
+    }
+    // Reproduce rarely
+    if (Math.random() < 0.0005) {
+        for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+            if (get(x + dx2, y + dy2) === E.WATER) { set(x + dx2, y + dy2, E.FISH); return; }
+        }
+    }
+    // Die from acid/lava/fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.ACID || nb === E.LAVA || nb === E.FIRE) { set(x, y, E.ASH); return; }
+    }
+}
+
+// --- BIRD: flies, avoids fire, eats seeds ---
+function simBird(x, y) {
+    // Fly — rise if too low, stay airborne
+    if (y > 30 && Math.random() < 0.4 && (isEmpty(x, y - 1) || get(x, y - 1) === E.SMOKE || get(x, y - 1) === E.STEAM)) {
+        swap(x, y, x, y - 1);
+    } else if (Math.random() < 0.3) {
+        // Fly horizontally
+        let d = ((x * 17 + frameN) % 13 < 6) ? 1 : -1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+        // Slight bobbing
+        if (Math.random() < 0.2) {
+            let dy2 = Math.random() < 0.5 ? -1 : 1;
+            if (isEmpty(x, y + dy2)) swap(x, y, x, y + dy2);
+        }
+    }
+    // Gravity when no flapping
+    if (Math.random() < 0.05 && y < H - 1 && isEmpty(x, y + 1)) swap(x, y, x, y + 1);
+    // Eat seeds and fish (dive for fish near water surface)
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.SEED) set(x + dx2, y + dy2, E.EMPTY);
+        if (nb === E.FISH && Math.random() < 0.1) set(x + dx2, y + dy2, E.EMPTY);
+        if (nb === E.FIRE || nb === E.LAVA) { set(x, y, E.ASH); return; }
+    }
+    // Reproduce rarely
+    if (Math.random() < 0.0003 && isEmpty(x, y + 1)) set(x, y + 1, E.BIRD);
+}
+
+// --- TAR: very slow thick liquid, extremely flammable ---
+function simTar(x, y) {
+    if (y < H - 1 && Math.random() < 0.15) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+        if (below === E.WATER) { swap(x, y, x, y + 1); return; } // sinks
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    if (Math.random() < 0.03) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+}
+
+// --- NAPALM: burns very hot for a long time, sticks to surfaces ---
+function simNapalm(x, y) {
+    // Slow fall + stick
+    if (y < H - 1 && Math.random() < 0.3) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) swap(x, y, x, y + 1);
+    }
+    // Constant fire spread — hotter than normal fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER) { set(x + dx2, y + dy2, E.STEAM); continue; } // burns through water!
+        if (nb === E.ICE) { set(x + dx2, y + dy2, E.WATER); continue; }
+        if (isFlammable(x + dx2, y + dy2) && Math.random() < 0.2) {
+            if (nb === E.GUNPOWDER || nb === E.NITRO || nb === E.C4) {
+                explode(x + dx2, y + dy2, nb === E.C4 ? 12 : nb === E.NITRO ? 10 : 6);
+            } else {
+                set(x + dx2, y + dy2, E.FIRE);
+            }
+        }
+    }
+    // Slowly consume itself
+    if (Math.random() < 0.008) set(x, y, E.SMOKE);
+}
+
+// --- COTTON: light, floats slowly, absorbs water, extremely flammable ---
+function simCotton(x, y) {
+    // Fall very slowly
+    if (y < H - 1 && Math.random() < 0.2) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+    }
+    // Drift sideways
+    if (Math.random() < 0.1) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Absorb water
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.WATER && Math.random() < 0.03) {
+            set(x + dx2, y + dy2, E.EMPTY);
+            // Wet cotton is heavier — just remove water
+        }
+    }
+}
+
+// --- SOAP: cleans (removes) acid, oil, tar, toxic; bubbles in water ---
+function simSoap(x, y) {
+    // Fall
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+    }
+    // Clean neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.ACID || nb === E.OIL || nb === E.TAR || nb === E.TOXIC) {
+            set(x + dx2, y + dy2, E.EMPTY);
+            if (Math.random() < 0.3) { set(x, y, E.EMPTY); return; } // soap consumed
+        }
+        // Bubbles in water
+        if (nb === E.WATER && Math.random() < 0.01) {
+            set(x + dx2, y + dy2, E.STEAM); // bubble
+        }
+        // Cure virus/plague
+        if ((nb === E.VIRUS || nb === E.PLAGUE) && Math.random() < 0.1) {
+            set(x + dx2, y + dy2, E.EMPTY);
+        }
+    }
+}
+
+// --- PLAGUE: infects everything alive, slower than virus, killed by soap ---
+function simPlague(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA || nb === E.SOAP) { set(x, y, E.EMPTY); return; }
+        if ((nb === E.HUMAN || nb === E.ANT || nb === E.FISH || nb === E.BIRD || nb === E.PLANT || nb === E.WOOD || nb === E.SEED || nb === E.ALGAE) && Math.random() < 0.02) {
+            set(x + dx2, y + dy2, E.PLAGUE);
+        }
+    }
+    // Slowly die
+    if (Math.random() < 0.002) set(x, y, E.ASH);
+    // Fall slowly (it's gooey)
+    if (y < H - 1 && Math.random() < 0.15 && isEmpty(x, y + 1)) swap(x, y, x, y + 1);
+}
+
+// --- DRAGONFIRE: super-hot fire, melts stone into lava, burns everything ---
+function simDragon(x, y) {
+    if (Math.random() < 0.04) { set(x, y, E.SMOKE); return; }
+    // Melts stone!
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.STONE && Math.random() < 0.05) { set(x + dx2, y + dy2, E.LAVA); continue; }
+        if (nb === E.METAL && Math.random() < 0.03) { set(x + dx2, y + dy2, E.LAVA); continue; }
+        if (nb === E.ICE) { set(x + dx2, y + dy2, E.STEAM); continue; }
+        if (nb === E.WATER) { set(x + dx2, y + dy2, E.STEAM); continue; }
+        if (nb === E.SAND && Math.random() < 0.1) { set(x + dx2, y + dy2, E.GLASS); continue; } // sand → glass!
+        if (nb === E.GLASS && Math.random() < 0.02) { set(x + dx2, y + dy2, E.LAVA); continue; }
+        if (isFlammable(x + dx2, y + dy2) && Math.random() < 0.3) {
+            if (nb === E.GUNPOWDER || nb === E.NITRO || nb === E.C4) explode(x + dx2, y + dy2, nb === E.C4 ? 12 : 8);
+            else set(x + dx2, y + dy2, E.DRAGON);
+        }
+        if (nb === E.HUMAN || nb === E.ZOMBIE || nb === E.ANT) set(x + dx2, y + dy2, E.ASH);
+    }
+    // Rise
+    if (y > 0 && Math.random() < 0.5) {
+        if (isEmpty(x, y - 1) || get(x, y - 1) === E.SMOKE || get(x, y - 1) === E.STEAM) swap(x, y, x, y - 1);
+    }
+    // Spread slightly sideways
+    if (Math.random() < 0.2) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) set(x + d, y, E.FIRE); // leaves normal fire trail
+    }
+}
+
+// --- PORTAL: teleports particles between A and B ---
+let portalApos = null;
+let portalBpos = null;
+let portalSearchFrame = -999;
+function findPortal(type) {
+    for (let y2 = 0; y2 < H; y2++) for (let x2 = 0; x2 < W; x2++) {
+        if (grid[y2 * W + x2] === type) return { x: x2, y: y2 };
+    }
+    return null;
+}
+
+function simPortal(x, y, myType, otherType) {
+    if (frameN - portalSearchFrame > 60) {
+        portalSearchFrame = frameN;
+        portalApos = findPortal(E.PORTAL_A);
+        portalBpos = findPortal(E.PORTAL_B);
+    }
+    let target = (myType === E.PORTAL_A) ? portalBpos : portalApos;
+    if (!target) return;
+    // Teleport adjacent particles to target portal's adjacent empty space
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb !== E.EMPTY && nb !== myType && nb !== otherType && nb !== E.PORTAL_A && nb !== E.PORTAL_B && Math.random() < 0.1) {
+            // Find empty space near target
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (isEmpty(target.x + dx3, target.y + dy3)) {
+                    set(target.x + dx3, target.y + dy3, nb);
+                    set(x + dx2, y + dy2, E.EMPTY);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+// --- LAVA + WATER = OBSIDIAN (update lava) ---
+// handled by adding obsidian to lava sim (patched below)
+
+// --- GRAVITY FLIP tool ---
+function gravityFlip(cx, cy, radius) {
+    for (let dx2 = -radius; dx2 <= radius; dx2++) for (let dy2 = -radius; dy2 <= radius; dy2++) {
+        if (dx2 * dx2 + dy2 * dy2 > radius * radius) continue;
+        let px2 = cx + dx2, py2 = cy + dy2;
+        let b = get(px2, py2);
+        if (b === E.EMPTY || b === E.STONE || b === E.BEDROCK || b === E.GLASS || b === E.OBSIDIAN || b === E.CLONE || b === E.VOID || b === E.MAGNET || b === E.PORTAL_A || b === E.PORTAL_B) continue;
+        // Launch upward
+        if (Math.random() < 0.3 && py2 > 1 && isEmpty(px2, py2 - 2)) {
+            swap(px2, py2, px2, py2 - 2);
+        }
+    }
+}
+
+// --- ROCKET: launches upward fast, explodes on impact ---
+function simRocket(x, y) {
+    // Rise fast
+    if (y > 0) {
+        let above = get(x, y - 1);
+        if (above === E.EMPTY || above === E.SMOKE || above === E.STEAM || above === E.CLOUD) {
+            swap(x, y, x, y - 1);
+            // Trail of fire
+            if (y < H - 1) set(x, y, E.FIRE);
+            // Extra speed
+            if (y - 1 > 0 && isEmpty(x, y - 2)) swap(x, y - 1, x, y - 2);
+        } else {
+            // Hit something → explode!
+            explode(x, y, 8);
+            return;
+        }
+    } else {
+        // Top edge → explode
+        explode(x, y, 6);
+    }
+}
+
+// --- BLACK HOLE: sucks in everything nearby, grows slowly ---
+function simBlackHole(x, y) {
+    // Only one pixel of the black hole does the full sim per frame
+    let isLeader = ((x * 7 + y * 13 + frameN) % 5 === 0);
+    if (!isLeader) return;
+
+    // Measure actual size: cast rays in 4 directions to find edge
+    let bhRadius = 0;
+    for (let dir = 0; dir < 4; dir++) {
+        let ddx = [1, -1, 0, 0][dir];
+        let ddy = [0, 0, 1, -1][dir];
+        let r = 0;
+        for (let s = 1; s <= 30; s++) {
+            if (get(x + ddx * s, y + ddy * s) === E.BLACK_HOLE) r = s;
+            else break;
+        }
+        if (r > bhRadius) bhRadius = r;
+    }
+
+    let radius = Math.min(40, bhRadius + 12);
+    let destroyR = Math.max(2, bhRadius + 1);
+    let spiralR = destroyR + 5;
+
+    for (let dx2 = -radius; dx2 <= radius; dx2 += 3) for (let dy2 = -radius; dy2 <= radius; dy2 += 3) {
+        let dist2 = dx2 * dx2 + dy2 * dy2;
+        if (dist2 > radius * radius) continue;
+        if (dx2 === 0 && dy2 === 0) continue;
+        let px2 = x + dx2, py2 = y + dy2;
+        let nb = get(px2, py2);
+        if (nb === E.EMPTY || nb === E.BLACK_HOLE || nb === E.BEDROCK || nb === E.OBSIDIAN || nb === E.TITANIUM) continue;
+        let dist = Math.sqrt(dist2);
+        if (dist <= destroyR) {
+            if (nb !== E.VOID) { set(px2, py2, E.EMPTY); bhConsumed++; }
+        } else if (dist <= spiralR) {
+            let tx = -dy2, ty = dx2;
+            let tlen = Math.sqrt(tx * tx + ty * ty);
+            tx = Math.round(tx / tlen); ty = Math.round(ty / tlen);
+            let mx2, my2;
+            if (Math.random() < 0.3) {
+                mx2 = dx2 > 0 ? -1 : dx2 < 0 ? 1 : 0;
+                my2 = dy2 > 0 ? -1 : dy2 < 0 ? 1 : 0;
+            } else { mx2 = tx; my2 = ty; }
+            if (Math.random() < 0.4) {
+                let nx = px2 + mx2, ny = py2 + my2;
+                if (isEmpty(nx, ny)) swap(px2, py2, nx, ny);
+            }
+        } else {
+            let tx = -dy2, ty = dx2;
+            let tlen = Math.sqrt(tx * tx + ty * ty);
+            tx = Math.round(tx / tlen); ty = Math.round(ty / tlen);
+            let mx2, my2;
+            if (Math.random() < 0.08) {
+                mx2 = dx2 > 0 ? -1 : dx2 < 0 ? 1 : 0;
+                my2 = dy2 > 0 ? -1 : dy2 < 0 ? 1 : 0;
+            } else { mx2 = tx; my2 = ty; }
+            if (Math.random() < 0.2) {
+                let nx = px2 + mx2, ny = py2 + my2;
+                if (isEmpty(nx, ny)) swap(px2, py2, nx, ny);
+            }
+        }
+    }
+}
+
+// --- BLACK HOLE GROWTH: called once per frame globally ---
+let bhConsumed = 0; // track total consumed across all BH pixels
+
+function growBlackHoles() {
+    if (bhConsumed < 8) { bhConsumed = 0; return; } // need enough consumed
+    if (Math.random() > 0.02) { bhConsumed = 0; return; } // very rare
+    bhConsumed = 0;
+
+    // Find ALL black hole pixels and compute center + radius
+    let cx = 0, cy = 0, cnt = 0;
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+        if (grid[y * W + x] === E.BLACK_HOLE) {
+            cx += x; cy += y; cnt++;
+        }
+    }
+    if (cnt < 1) return;
+    cx = Math.round(cx / cnt); cy = Math.round(cy / cnt);
+
+    // Find max radius from center
+    let maxR2 = 0;
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+        if (grid[y * W + x] === E.BLACK_HOLE) {
+            let dx2 = x - cx, dy2 = y - cy;
+            let d2 = dx2 * dx2 + dy2 * dy2;
+            if (d2 > maxR2) maxR2 = d2;
+        }
+    }
+    let curR = Math.floor(Math.sqrt(maxR2));
+    let newR = curR + 1;
+    let newR2 = newR * newR;
+
+    // Fill perfect circle from center
+    for (let dx2 = -newR; dx2 <= newR; dx2++) for (let dy2 = -newR; dy2 <= newR; dy2++) {
+        if (dx2 * dx2 + dy2 * dy2 > newR2) continue;
+        let gx = cx + dx2, gy = cy + dy2;
+        if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
+            let gn = get(gx, gy);
+            if (gn !== E.BLACK_HOLE && gn !== E.BEDROCK && gn !== E.VOID) {
+                set(gx, gy, E.BLACK_HOLE);
+            }
+        }
+    }
+}
+
+// --- CONVEYOR: moves particles on top sideways ---
+function simConveyor(x, y, dir) {
+    // Move particle above in direction
+    if (y > 0) {
+        let above = get(x, y - 1);
+        if (above !== E.EMPTY && above !== E.CONVEYOR_R && above !== E.CONVEYOR_L
+            && above !== E.BEDROCK && above !== E.VOID && above !== E.CLONE
+            && above !== E.FAUCET && above !== E.HEATER && above !== E.COOLER
+            && above !== E.LASER_EMIT && above !== E.BATTERY && above !== E.PORTAL_A && above !== E.PORTAL_B) {
+            let nx = x + dir;
+            if (nx >= 0 && nx < W && isEmpty(nx, y - 1)) {
+                // Direct swap without marking updated (so element can still be simulated)
+                let i1 = idx(x, y - 1), i2 = idx(nx, y - 1);
+                let t = grid[i1]; grid[i1] = grid[i2]; grid[i2] = t;
+            }
+        }
+    }
+}
+
+// --- HEATER: heats neighbors — melts ice, boils water, ignites flammable ---
+function simHeater(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER && Math.random() < 0.06) set(x + dx2, y + dy2, E.STEAM);
+        if (nb === E.ICE && Math.random() < 0.08) set(x + dx2, y + dy2, E.WATER);
+        if (nb === E.SNOW && Math.random() < 0.1) set(x + dx2, y + dy2, E.WATER);
+        if (nb === E.WAX && Math.random() < 0.04) set(x + dx2, y + dy2, E.LIQUID_WAX);
+        if (nb === E.MUD && Math.random() < 0.02) set(x + dx2, y + dy2, E.CLAY);
+        // Heater melts metals (slow)
+        if ((nb === E.METAL || nb === E.IRON || nb === E.COPPER) && Math.random() < 0.005) set(x + dx2, y + dy2, E.MOLTEN);
+        if (isFlammable(x + dx2, y + dy2) && Math.random() < 0.01) set(x + dx2, y + dy2, E.FIRE);
+    }
+}
+
+// --- COOLER: cools neighbors — freezes water, condenses steam ---
+function simCooler(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER && Math.random() < 0.04) set(x + dx2, y + dy2, E.ICE);
+        if (nb === E.STEAM && Math.random() < 0.08) set(x + dx2, y + dy2, E.WATER);
+        if (nb === E.LAVA && Math.random() < 0.03) set(x + dx2, y + dy2, E.OBSIDIAN);
+        if (nb === E.FIRE && Math.random() < 0.1) set(x + dx2, y + dy2, E.SMOKE);
+        if (nb === E.LIQUID_WAX && Math.random() < 0.06) set(x + dx2, y + dy2, E.WAX);
+        if (nb === E.OIL && Math.random() < 0.02) set(x + dx2, y + dy2, E.WAX);
+        if (nb === E.DRAGON && Math.random() < 0.05) set(x + dx2, y + dy2, E.SMOKE);
+        // Cooler solidifies molten metal back to metal
+        if (nb === E.MOLTEN && Math.random() < 0.06) set(x + dx2, y + dy2, E.METAL);
+    }
+}
+
+// --- DYNAMITE: solid, explodes from fire/spark, bigger than gunpowder ---
+function simDynamite(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.SPARK || nb === E.EMBER || nb === E.LAVA || nb === E.DRAGON || nb === E.NAPALM) {
+            explode(x, y, 10);
+            return;
+        }
+    }
+}
+
+// --- GAS (natural gas): rises, flammable, explodes when dense + ignited ---
+function simGasNatural(x, y) {
+    // Rise like gas
+    if (y > 0) {
+        if (isEmpty(x, y - 1)) { swap(x, y, x, y - 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y - 1)) { swap(x, y, x + d, y - 1); return; }
+        if (isEmpty(x - d, y - 1)) { swap(x, y, x - d, y - 1); return; }
+    }
+    let d = Math.random() < 0.5 ? -1 : 1;
+    if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    // Slowly dissipate
+    if (Math.random() < 0.003) { set(x, y, E.EMPTY); return; }
+    // Explode if fire nearby
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.SPARK || nb === E.EMBER || nb === E.LAVA) {
+            // Count nearby gas
+            let cnt = 0;
+            for (let dx3 = -4; dx3 <= 4; dx3++) for (let dy3 = -4; dy3 <= 4; dy3++) {
+                if (get(x + dx3, y + dy3) === E.GAS) cnt++;
+            }
+            if (cnt > 10) explode(x, y, 10);
+            else set(x, y, E.FIRE);
+            return;
+        }
+    }
+}
+
+// --- LIFE: Game of Life cellular automaton adapted for sandbox ---
+function simLife(x, y) {
+    // Count live neighbors
+    let neighbors = 0;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        if (get(x + dx2, y + dy2) === E.LIFE) neighbors++;
+    }
+    // Die: underpopulation (<2) or overpopulation (>3)
+    if (neighbors < 2 || neighbors > 3) {
+        set(x, y, E.EMPTY);
+        return;
+    }
+    // Reproduce: empty cell with exactly 3 neighbors → new life
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        if (get(x + dx2, y + dy2) === E.EMPTY) {
+            let n2 = 0;
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (dx3 === 0 && dy3 === 0) continue;
+                if (get(x + dx2 + dx3, y + dy2 + dy3) === E.LIFE) n2++;
+            }
+            if (n2 === 3) set(x + dx2, y + dy2, E.LIFE);
+        }
+    }
+    // Interactions with other elements
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA || nb === E.ACID || nb === E.DRAGON) { set(x, y, E.EMPTY); return; }
+        if (nb === E.WATER && Math.random() < 0.01) { set(x + dx2, y + dy2, E.LIFE); } // grows in water
+    }
+}
+
+// --- QUICKSAND: looks like sand but sucks things down slowly ---
+function simQuicksand(x, y) {
+    // Swap with particles above — pull them down
+    if (y > 0) {
+        let above = get(x, y - 1);
+        if (above === E.HUMAN || above === E.ZOMBIE || above === E.ANT || above === E.FISH || above === E.BIRD) {
+            swap(x, y, x, y - 1); // pull creature down
+            return;
+        }
+        if (above === E.SAND || above === E.GRAVEL || above === E.SALT || above === E.DUST) {
+            if (Math.random() < 0.3) swap(x, y, x, y - 1);
+        }
+    }
+    // Slowly flow like thick liquid
+    if (y < H - 1 && Math.random() < 0.1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) swap(x, y, x, y + 1);
+    }
+    // Spread very slowly sideways
+    if (Math.random() < 0.02) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+}
+
+// --- MIRROR: reflects laser beams sideways ---
+function simMirror(x, y) {
+    // Check for laser hitting from above
+    if (y > 0 && get(x, y - 1) === E.LASER) {
+        set(x, y - 1, E.EMPTY);
+        // Reflect laser horizontally both directions
+        for (let dir = -1; dir <= 1; dir += 2) {
+            for (let d = 1; d <= 30; d++) {
+                let nx = x + dir * d;
+                if (nx < 0 || nx >= W) break;
+                let nb = get(nx, y);
+                if (nb === E.EMPTY) {
+                    set(nx, y, E.LASER);
+                } else if (nb === E.MIRROR) {
+                    // Hit another mirror — reflect down
+                    if (y + 1 < H && isEmpty(nx, y + 1)) set(nx, y + 1, E.LASER);
+                    break;
+                } else if (nb === E.GLASS) {
+                    continue; // pass through glass
+                } else {
+                    // Hit something — burn it
+                    if (nb === E.GUNPOWDER || nb === E.C4 || nb === E.NITRO || nb === E.DYNAMITE || nb === E.BOMB) {
+                        explode(nx, y, nb === E.C4 ? 12 : nb === E.BOMB ? 15 : nb === E.NITRO ? 10 : 8);
+                    } else if (nb !== E.BEDROCK && nb !== E.OBSIDIAN && nb !== E.TITANIUM && nb !== E.DIAMOND) {
+                        set(nx, y, E.FIRE);
+                    }
+                    break;
+                }
+            }
+        }
+    }
+}
+
+// --- BOMB: massive explosion when hit by fire/spark/impact, much bigger than C4 ---
+function simBomb(x, y) {
+    // Falls
+    if (y < H - 1 && isEmpty(x, y + 1)) {
+        swap(x, y, x, y + 1);
+        // Impact detection — if next cell below is solid, and we were falling
+        if (y + 2 < H && SOLID.has(get(x, y + 2)) && Math.random() < 0.3) {
+            explode(x, y + 1, 15); return;
+        }
+        return;
+    }
+    // Triggered by fire/spark/lava
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.SPARK || nb === E.LAVA || nb === E.DRAGON || nb === E.NAPALM || nb === E.EMBER || nb === E.LASER) {
+            explode(x, y, 15);
+            return;
+        }
+    }
+}
+
+// --- ACID CLOUD: floats, rains acid, dissolves things it touches ---
+// --- PURIFY: holy light that eats Corrupt and spreads through it ---
+function simPurify(x, y) {
+    let dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+    let foundCorrupt = false;
+    for (let i = 0; i < dirs.length; i++) {
+        let d = dirs[i];
+        let nx = x + d[0], ny = y + d[1];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        let nb = get(nx, ny);
+        if (nb === E.CORRUPT) {
+            foundCorrupt = true;
+            // Eat corrupt — convert to empty or spread purify into it
+            if (Math.random() < 0.25) {
+                set(nx, ny, E.PURIFY);
+            }
+        }
+    }
+    // If no corrupt nearby, slowly fade away
+    if (!foundCorrupt && Math.random() < 0.02) {
+        set(x, y, E.EMPTY);
+        return;
+    }
+    // Float upward slowly
+    if (Math.random() < 0.15 && y > 0 && isEmpty(x, y - 1)) {
+        swap(x, y, x, y - 1);
+    } else if (Math.random() < 0.1) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (x + d >= 0 && x + d < W && isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+}
+
+// --- CORRUPT: dark spreading corruption that converts everything ---
+function simCorrupt(x, y) {
+    // Spread to a random neighbor
+    let dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[1,-1],[-1,1],[1,1]];
+    // Shuffle pick — try 3 random directions
+    for (let i = 0; i < 3; i++) {
+        let d = dirs[Math.floor(Math.random() * dirs.length)];
+        let nx = x + d[0], ny = y + d[1];
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        let nb = get(nx, ny);
+        if (nb === E.EMPTY || nb === E.CORRUPT || nb === E.BEDROCK || nb === E.VOID || nb === E.LEAD || nb === E.PURIFY) continue;
+        // Convert the neighbor into CORRUPT
+        if (Math.random() < 0.08) {
+            set(nx, ny, E.CORRUPT);
+            return;
+        }
+    }
+    // Slow gravity — corrupt sinks slowly
+    if (Math.random() < 0.1 && y + 1 < H && isEmpty(x, y + 1)) {
+        swap(x, y, x, y + 1);
+    }
+}
+
+function simAcidCloud(x, y) {
+    // Rise like cloud
+    if (y > 2 && Math.random() < 0.4) {
+        let above = get(x, y - 1);
+        if (above === E.EMPTY || above === E.SMOKE || above === E.STEAM || above === E.TOXIC) {
+            swap(x, y, x, y - 1); return;
+        }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y - 1) === E.EMPTY) { swap(x, y, x + d, y - 1); return; }
+    }
+    // Drift sideways
+    if (Math.random() < 0.1) {
+        let d = (frameN % 200 < 100) ? 1 : -1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Rain acid drops
+    if (Math.random() < 0.01) {
+        for (let dy2 = 1; dy2 <= 3; dy2++) {
+            if (y + dy2 < H && isEmpty(x, y + dy2)) {
+                set(x, y + dy2, E.ACID); break;
+            }
+        }
+    }
+    // Slowly die
+    if (Math.random() < 0.002) set(x, y, E.TOXIC);
+}
+
+// --- RUBBER: bouncy solid, bounces falling particles upward ---
+function simRubber(x, y) {
+    // Static, but bounces things that land on it
+    if (y > 0) {
+        let above = get(x, y - 1);
+        // If a powder/liquid just arrived above, launch it upward
+        if (above === E.SAND || above === E.GRAVEL || above === E.SALT || above === E.GUNPOWDER || above === E.ASH || above === E.CHARCOAL || above === E.DUST) {
+            // Bounce it up
+            for (let by = 2; by <= 5; by++) {
+                if (y - by >= 0 && isEmpty(x, y - by)) {
+                    set(x, y - 1, E.EMPTY);
+                    set(x, y - by, above);
+                    break;
+                }
+            }
+        }
+    }
+    // Insulates — blocks spark/fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.ACID && Math.random() < 0.001) {
+            set(x, y, E.SMOKE); return; // only acid very slowly eats rubber
+        }
+    }
+}
+
+// --- THERMITE: falls like powder, ignites at extreme heat, burns EVERYTHING ---
+function simThermite(x, y) {
+    // Fall
+    if (y < H - 1) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY || below === E.WATER) { swap(x, y, x, y + 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
+    }
+    // Ignite from fire/lava/spark/dragon
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.LAVA || nb === E.SPARK || nb === E.DRAGON || nb === E.EMBER || nb === E.NAPALM) {
+            // Ignite — becomes dragon-fire level heat
+            set(x, y, E.DRAGON);
+            // Spread to adjacent thermite
+            for (let dx3 = -1; dx3 <= 1; dx3++) for (let dy3 = -1; dy3 <= 1; dy3++) {
+                if (get(x + dx3, y + dy3) === E.THERMITE && Math.random() < 0.4) {
+                    set(x + dx3, y + dy3, E.DRAGON);
+                }
+            }
+            return;
+        }
+    }
+}
+
+// --- FROST: spreads cold, freezes water/liquids, killed by heat ---
+function simFrost(x, y) {
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        // Freeze water → ice
+        if (nb === E.WATER && Math.random() < 0.08) { set(x + dx2, y + dy2, E.ICE); continue; }
+        // Freeze steam → snow
+        if (nb === E.STEAM && Math.random() < 0.1) { set(x + dx2, y + dy2, E.SNOW); continue; }
+        // Freeze lava → obsidian
+        if (nb === E.LAVA && Math.random() < 0.05) { set(x + dx2, y + dy2, E.OBSIDIAN); set(x, y, E.EMPTY); return; }
+        // Freeze oil → wax
+        if (nb === E.OIL && Math.random() < 0.06) { set(x + dx2, y + dy2, E.WAX); continue; }
+        // Freeze mud → stone
+        if (nb === E.MUD && Math.random() < 0.04) { set(x + dx2, y + dy2, E.STONE); continue; }
+        // Killed by fire/lava
+        if (nb === E.FIRE || nb === E.DRAGON || nb === E.NAPALM || nb === E.EMBER) { set(x, y, E.WATER); return; }
+    }
+    // Spread slowly
+    if (Math.random() < 0.003) {
+        let d = Math.floor(Math.random() * 4);
+        let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        if (isEmpty(x + dirs[d][0], y + dirs[d][1])) set(x + dirs[d][0], y + dirs[d][1], E.FROST);
+    }
+    // Slowly die
+    if (Math.random() < 0.002) set(x, y, E.EMPTY);
+}
+
+// --- DUST: very light powder, explosive when dense + spark ---
+function simDust(x, y) {
+    // Fall slowly, drift
+    if (y < H - 1 && Math.random() < 0.4) {
+        let below = get(x, y + 1);
+        if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
+    }
+    // Drift sideways
+    if (Math.random() < 0.15) {
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Dust explosion — if spark/fire nearby and enough dust around
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.FIRE || nb === E.SPARK || nb === E.EMBER) {
+            // Count nearby dust
+            let cnt = 0;
+            for (let dx3 = -3; dx3 <= 3; dx3++) for (let dy3 = -3; dy3 <= 3; dy3++) {
+                if (get(x + dx3, y + dy3) === E.DUST) cnt++;
+            }
+            if (cnt > 8) { explode(x, y, 8); return; } // dust explosion!
+            else { set(x, y, E.FIRE); return; }
+        }
+    }
+}
+
+// --- YEAST: grows in water/sugar, produces gas, ferments ---
+function simYeast(x, y) {
+    let touchWater = false;
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER) touchWater = true;
+        // Die in fire/acid
+        if (nb === E.FIRE || nb === E.ACID || nb === E.LAVA) { set(x, y, E.EMPTY); return; }
+    }
+    if (touchWater) {
+        // Grow
+        if (Math.random() < 0.008) {
+            let d = Math.floor(Math.random() * 4);
+            let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+            if (get(x + dirs[d][0], y + dirs[d][1]) === E.WATER) {
+                set(x + dirs[d][0], y + dirs[d][1], E.YEAST);
+            }
+        }
+        // Produce gas bubbles
+        if (Math.random() < 0.005 && y > 0 && (get(x, y - 1) === E.WATER || isEmpty(x, y - 1))) {
+            set(x, y - 1, E.STEAM);
+        }
+    }
+    // Fall
+    if (y < H - 1 && isEmpty(x, y + 1) && Math.random() < 0.3) swap(x, y, x, y + 1);
+}
+
+// --- SPONGE: absorbs water (up to limit), squeezable by pressure ---
+function simSponge(x, y) {
+    // Absorb water from neighbors
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER && Math.random() < 0.1) {
+            set(x + dx2, y + dy2, E.EMPTY);
+        }
+    }
+    // Fire dries sponge and burns it
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (get(x + dx2, y + dy2) === E.FIRE && Math.random() < 0.05) {
+            set(x, y, E.FIRE); return;
+        }
+    }
+}
+
+// --- CACTUS: grows upward slowly, prickly (kills ants/humans), needs sand ---
+function simCactus(x, y) {
+    // Grow upward if on sand/cactus
+    let below = y < H - 1 ? get(x, y + 1) : E.STONE;
+    if ((below === E.SAND || below === E.CACTUS) && Math.random() < 0.002) {
+        if (y > 0 && isEmpty(x, y - 1)) {
+            set(x, y - 1, E.CACTUS);
+        }
+    }
+    // Prickly — kills ants, humans, zombies on contact
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if ((nb === E.ANT || nb === E.HUMAN || nb === E.ZOMBIE) && Math.random() < 0.2) {
+            set(x + dx2, y + dy2, E.EMPTY);
+        }
+        if (nb === E.WATER && Math.random() < 0.01) {
+            // Absorb water, grow faster
+            set(x + dx2, y + dy2, E.EMPTY);
+            if (y > 0 && isEmpty(x, y - 1) && Math.random() < 0.3) set(x, y - 1, E.CACTUS);
+        }
+    }
+}
+
+// --- FIREFLY: flying creature, emits light (ember), attracted to plant ---
+function simFirefly(x, y) {
+    // Fly randomly
+    if (Math.random() < 0.4) {
+        let dx2 = Math.floor(Math.random() * 3) - 1;
+        let dy2 = Math.floor(Math.random() * 3) - 1;
+        // Attracted to plant/leaves
+        for (let scan = 1; scan <= 6; scan++) {
+            if (get(x + scan, y) === E.PLANT || get(x + scan, y) === E.ALGAE) { dx2 = 1; break; }
+            if (get(x - scan, y) === E.PLANT || get(x - scan, y) === E.ALGAE) { dx2 = -1; break; }
+        }
+        if (isEmpty(x + dx2, y + dy2)) swap(x, y, x + dx2, y + dy2);
+    }
+    // Glow — occasionally emit ember particle
+    if (Math.random() < 0.01) {
+        let d = Math.floor(Math.random() * 4);
+        let dirs = [[0,-1],[0,1],[-1,0],[1,0]];
+        if (isEmpty(x + dirs[d][0], y + dirs[d][1])) set(x + dirs[d][0], y + dirs[d][1], E.LIGHT);
+    }
+    // Die in water, fire
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        let nb = get(x + dx2, y + dy2);
+        if (nb === E.WATER || nb === E.FIRE || nb === E.LAVA || nb === E.ACID) { set(x, y, E.EMPTY); return; }
+    }
+    // Reproduce near plants
+    if (Math.random() < 0.0003) {
+        for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+            if (get(x + dx2, y + dy2) === E.PLANT && isEmpty(x, y - 1)) { set(x, y - 1, E.FIREFLY); return; }
+        }
+    }
+}
+
+// --- RADIATION: green glow, kills living things, fades ---
+function simRadiation(x, y) {
+    // Short lifespan
+    if (Math.random() < 0.08) { set(x, y, E.EMPTY); return; }
+    // Spread slowly in random direction
+    if (Math.random() < 0.3) {
+        let dx2 = Math.floor(Math.random() * 3) - 1;
+        let dy2 = Math.floor(Math.random() * 3) - 1;
+        let nx = x + dx2, ny = y + dy2;
+        if (nx >= 0 && nx < W && ny >= 0 && ny < H && isEmpty(nx, ny)) {
+            swap(x, y, nx, ny);
+        }
+    }
+    // Kill living things on contact
+    for (let dx2 = -1; dx2 <= 1; dx2++) for (let dy2 = -1; dy2 <= 1; dy2++) {
+        if (dx2 === 0 && dy2 === 0) continue;
+        let nb = get(x + dx2, y + dy2);
+        if ((nb === E.HUMAN || nb === E.ANT || nb === E.FISH || nb === E.BIRD || nb === E.FIREFLY) && Math.random() < 0.15) {
+            set(x + dx2, y + dy2, E.ASH);
+        }
+        if ((nb === E.PLANT || nb === E.LEAVES || nb === E.ALGAE || nb === E.SEED) && Math.random() < 0.08) {
+            set(x + dx2, y + dy2, E.ASH);
+        }
+        if (nb === E.ZOMBIE && Math.random() < 0.05) {
+            set(x + dx2, y + dy2, E.ASH);
+        }
+    }
+}
+
+// --- NEUTRON: fast-moving particle, splits atoms, causes nuclear chain ---
+function simNeutron(x, y) {
+    // Lifetime: 1 second (~60 frames)
+    let ai = idx(x, y);
+    neutronAge[ai]++;
+    if (neutronAge[ai] > 60) { set(x, y, E.EMPTY); neutronAge[ai] = 0; return; }
+    // Move in random direction VERY fast — 2 steps per frame
+    for (let step = 0; step < 2; step++) {
+        let dx2 = Math.floor(Math.random() * 7) - 3;
+        let dy2 = Math.floor(Math.random() * 7) - 3;
+        let nx = x + dx2, ny = y + dy2;
+        if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+        let nb = get(nx, ny);
+        if (nb === E.EMPTY) {
+            // Transfer age when moving
+            let oi = idx(x, y);
+            swap(x, y, nx, ny);
+            neutronAge[idx(nx, ny)] = neutronAge[oi];
+            neutronAge[oi] = 0;
+            x = nx; y = ny;
+        } else if (nb !== E.NEUTRON && nb !== E.ANTIMATTER && nb !== E.LEAD) {
+            // Hit something — nuclear fission
+            if (nb === E.URANIUM) {
+                // Uranium fission — controlled: uranium becomes lava, spawn 2-3 neutrons
+                set(nx, ny, E.LAVA);
+                set(x, y, E.FIRE);
+                neutronAge[ai] = 0;
+                let spawnCount = 2 + (Math.random() < 0.3 ? 1 : 0);
+                for (let i = 0; i < spawnCount; i++) {
+                    let angle = Math.random() * Math.PI * 2;
+                    let dist = 2 + Math.floor(Math.random() * 5);
+                    let sx = nx + Math.round(Math.cos(angle) * dist);
+                    let sy = ny + Math.round(Math.sin(angle) * dist);
+                    if (sx >= 0 && sx < W && sy >= 0 && sy < H && isEmpty(sx, sy)) {
+                        set(sx, sy, E.NEUTRON);
+                        neutronAge[idx(sx, sy)] = 0;
+                    }
+                }
+                return;
+            } else if (nb === E.METAL || nb === E.STONE || nb === E.IRON
+                || nb === E.COPPER || nb === E.TITANIUM || nb === E.GOLD_M || nb === E.DIAMOND) {
+                // Non-uranium fission — small explosion + few neutrons
+                explode(nx, ny, 4);
+                for (let i = 0; i < 3; i++) {
+                    let angle = Math.random() * Math.PI * 2;
+                    let dist = 2 + Math.floor(Math.random() * 6);
+                    let sx = nx + Math.round(Math.cos(angle) * dist);
+                    let sy = ny + Math.round(Math.sin(angle) * dist);
+                    if (sx >= 0 && sx < W && sy >= 0 && sy < H && isEmpty(sx, sy)) {
+                        set(sx, sy, E.NEUTRON);
+                        neutronAge[idx(sx, sy)] = 0;
+                    }
+                }
+                return;
+            } else if (isFlammable(nb)) {
+                // Neutrons ignite flammable materials on contact
+                set(nx, ny, E.FIRE);
+            }
+            // Pass through non-metals without dying
+        }
+    }
+    // Neutrony mizí po 1 sekundě
+}
+
+// --- ANTIMATTER: annihilates anything it touches in flash of energy ---
+function simAntimatter(x, y) {
+    // Float randomly — weightless
+    let dx2 = Math.floor(Math.random() * 3) - 1;
+    let dy2 = Math.floor(Math.random() * 3) - 1;
+    let nx = x + dx2, ny = y + dy2;
+    if (nx >= 0 && nx < W && ny >= 0 && ny < H) {
+        let nb = get(nx, ny);
+        if (nb === E.EMPTY) {
+            swap(x, y, nx, ny);
+        } else if (nb !== E.ANTIMATTER && nb !== E.VOID && nb !== E.BEDROCK) {
+            // ANNIHILATION — both particles destroyed, massive energy release
+            set(nx, ny, E.EMPTY);
+            set(x, y, E.EMPTY);
+            // Massive explosion based on what was hit
+            let blastR = 6;
+            if (nb === E.URANIUM || nb === E.NEUTRON) blastR = 15; // nuclear annihilation
+            else if (nb === E.LAVA || nb === E.MOLTEN) blastR = 10;
+            else if (nb === E.ANTIMATTER) blastR = 20; // matter-antimatter pair = huge
+            explode(x, y, blastR);
+            // Energy burst — ring of light and spark
+            for (let angle = 0; angle < 16; angle++) {
+                let a = angle * Math.PI / 8;
+                for (let r = 1; r <= blastR; r++) {
+                    let px2 = Math.round(x + Math.cos(a) * r);
+                    let py2 = Math.round(y + Math.sin(a) * r);
+                    if (px2 >= 0 && px2 < W && py2 >= 0 && py2 < H) {
+                        let b2 = get(px2, py2);
+                        if (b2 === E.EMPTY) set(px2, py2, r <= 3 ? E.SPARK : (Math.random() < 0.5 ? E.LIGHT : E.FIRE));
+                    }
+                }
+            }
+            // Spawn radiation if hit uranium
+            if (nb === E.URANIUM) {
+                for (let i = 0; i < 15; i++) {
+                    let ra = Math.random() * Math.PI * 2;
+                    let rd = 3 + Math.floor(Math.random() * 10);
+                    let rx = x + Math.round(Math.cos(ra) * rd);
+                    let ry = y + Math.round(Math.sin(ra) * rd);
+                    if (rx >= 0 && rx < W && ry >= 0 && ry < H && isEmpty(rx, ry))
+                        set(rx, ry, E.RADIATION);
+                }
+            }
+            return;
+        }
+    }
+    // Slowly decay into spark
+    if (Math.random() < 0.003) set(x, y, E.SPARK);
+    // Glow — emit light nearby
+    if (Math.random() < 0.05) {
+        let ld = [[-1,0],[1,0],[0,-1],[0,1]][Math.floor(Math.random() * 4)];
+        if (isEmpty(x + ld[0], y + ld[1])) set(x + ld[0], y + ld[1], E.LIGHT);
+    }
+}
+
+// --- CLAY: powder, bakes into Brick near fire ---
+function simCite(x, y) {
+    simPowder(x, y);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        let nb = get(x + dx, y + dy);
+        if ((nb === E.FIRE || nb === E.LAVA || nb === E.DRAGON || nb === E.HEATER || nb === E.TORCH) && Math.random() < 0.03) {
+            set(x, y, E.BRICK); return;
+        }
+    }
+}
+
+// --- TORCH: eternal fire source, never burns out ---
+function simTorch(x, y) {
+    // Ignite neighbors like fire, but never die
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        let nb = get(x + dx, y + dy);
+        if (nb === E.WATER || nb === E.ICE) { set(x + dx, y + dy, E.STEAM); continue; }
+        if (nb === E.SNOW) { set(x + dx, y + dy, E.WATER); continue; }
+        if (isFlammable(x + dx, y + dy) && Math.random() < 0.1) {
+            if (nb === E.GUNPOWDER) explode(x + dx, y + dy, 6);
+            else if (nb === E.NITRO) explode(x + dx, y + dy, 10);
+            else if (nb === E.C4) explode(x + dx, y + dy, 12);
+            else if (nb === E.DYNAMITE) explode(x + dx, y + dy, 10);
+            else set(x + dx, y + dy, E.FIRE);
+        }
+    }
+    // Emit light/ember occasionally
+    if (Math.random() < 0.03) {
+        let d = [[-1,-1],[0,-1],[1,-1]][Math.floor(Math.random() * 3)];
+        if (isEmpty(x + d[0], y + d[1])) set(x + d[0], y + d[1], E.EMBER);
+    }
+}
+
+// --- REPULSOR: pushes everything away ---
+function simRepulsor(x, y) {
+    let radius = 10;
+    if (Math.random() < 0.5) return;
+    for (let dx2 = -radius; dx2 <= radius; dx2 += 2) for (let dy2 = -radius; dy2 <= radius; dy2 += 2) {
+        let dist2 = dx2 * dx2 + dy2 * dy2;
+        if (dist2 > radius * radius || dist2 < 4) continue;
+        let px2 = x + dx2, py2 = y + dy2;
+        let nb = get(px2, py2);
+        if (nb === E.EMPTY || nb === E.REPULSOR || nb === E.BEDROCK || nb === E.VOID) continue;
+        // Push away from center
+        let mx = dx2 > 0 ? 1 : dx2 < 0 ? -1 : 0;
+        let my = dy2 > 0 ? 1 : dy2 < 0 ? -1 : 0;
+        if (Math.random() < 0.3 && isEmpty(px2 + mx, py2 + my)) {
+            swap(px2, py2, px2 + mx, py2 + my);
+        }
+    }
+}
+
+// --- CONCRETE: powder that hardens into solid when wet ---
+function simConcrete(x, y) {
+    // Fall like powder
+    simPowder(x, y);
+    // Harden when touching water
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        if (get(x + dx, y + dy) === E.WATER && Math.random() < 0.1) {
+            set(x, y, E.CONCRETE_DRY);
+            set(x + dx, y + dy, E.EMPTY); // consume water
+            return;
+        }
+    }
+}
+
+function explode(cx, cy, radius) {
+    for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) {
+        if (dx * dx + dy * dy <= radius * radius) {
+            let px = cx + dx, py = cy + dy;
+            let b = get(px, py);
+            if (b === E.EMPTY) continue;
+            if (b === E.BEDROCK || b === E.OBSIDIAN || b === E.URANIUM || b === E.TURBINE || b === E.DIAMOND || b === E.MIRROR || b === E.TITANIUM || b === E.CLONE || b === E.VOID || b === E.BLACK_HOLE || b === E.CONCRETE_DRY || b === E.BRICK || b === E.TORCH || b === E.REPULSOR) continue;
+            // Glass shatters into sand from explosions
+            if (b === E.GLASS) { set(px, py, E.SAND); continue; }
+            if (Math.random() < 0.7) {
+                if ((b === E.GUNPOWDER || b === E.C4 || b === E.NITRO) && (Math.abs(dx) > 1 || Math.abs(dy) > 1)) {
+                    // Mark for chain — will be picked up by their own sim next frame
+                    set(px, py, E.FIRE);
+                } else {
+                    set(px, py, Math.random() < 0.3 ? E.FIRE : E.EMPTY);
+                }
+            }
+        }
+    }
+    // Smoke cloud
+    for (let i = 0; i < radius * 3; i++) {
+        let sx = cx + Math.floor(Math.random() * radius * 2 - radius);
+        let sy = cy - Math.floor(Math.random() * radius);
+        if (isEmpty(sx, sy)) set(sx, sy, E.SMOKE);
+    }
+}
+
+// ===================== DRAWING (OPTIMIZED) =====================
+// Pre-compute background gradient
+const bgPix = new Uint8Array(H * 3);
+for (let y = 0; y < H; y++) { let g = 20 + (y / H * 15) | 0; bgPix[y*3]=g; bgPix[y*3+1]=g; bgPix[y*3+2]=g+15; }
+
+function draw() {
+    let gi = 0;
+    for (let y = 0; y < H; y++) {
+        let bgr = bgPix[y*3], bgg = bgPix[y*3+1], bgb = bgPix[y*3+2];
+        for (let x = 0; x < W; x++) {
+            let b = grid[gi];
+            let pi = gi << 2; // gi * 4
+            if (b === 0) {
+                pix[pi] = bgr; pix[pi+1] = bgg; pix[pi+2] = bgb; pix[pi+3] = 255;
+            } else {
+                drawPixel(pi, b, x, y);
+            }
+            gi++;
+        }
+    }
+    bx.putImageData(imgData, 0, 0);
+    X.drawImage(buf, 0, 0, W * SCALE, H * SCALE);
+    // Brush preview
+    if (lastMX >= 0) {
+        X.strokeStyle = 'rgba(255,255,255,0.4)';
+        X.lineWidth = 1;
+        X.beginPath();
+        X.arc(lastMX * SCALE, lastMY * SCALE, brushR * SCALE, 0, 6.28);
+        X.stroke();
+    }
+}
+
+// ===================== INPUT =====================
+let curElem = E.SAND;
+let brushR = 3;
+let painting = false;
+let erasing = false;
+let lastMX = -1, lastMY = -1;
+let paused = false;
+
+C.addEventListener('mousedown', e => {
+    e.preventDefault();
+    if (e.button === 0) painting = true;
+    if (e.button === 2) erasing = true;
+    // Middle click = eyedropper — pick element under cursor
+    if (e.button === 1) {
+        let rect = C.getBoundingClientRect();
+        let gx = Math.floor((e.clientX - rect.left) / SCALE);
+        let gy = Math.floor((e.clientY - rect.top) / SCALE);
+        if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
+            let picked = get(gx, gy);
+            if (picked !== E.EMPTY) selectElem(picked);
+        }
+    }
+});
+C.addEventListener('mouseup', e => {
+    if (e.button === 0) painting = false;
+    if (e.button === 2) erasing = false;
+});
+C.addEventListener('mouseleave', () => { painting = false; erasing = false; lastMX = -1; });
+C.addEventListener('contextmenu', e => e.preventDefault());
+C.addEventListener('mousemove', e => {
+    let rect = C.getBoundingClientRect();
+    lastMX = Math.floor((e.clientX - rect.left) / SCALE);
+    lastMY = Math.floor((e.clientY - rect.top) / SCALE);
+});
+C.addEventListener('wheel', e => {
+    e.preventDefault();
+    brushR = Math.max(1, Math.min(12, brushR + (e.deltaY > 0 ? 1 : -1)));
+    document.getElementById('bsize').value = brushR;
+    document.getElementById('bval').textContent = brushR;
+});
+document.getElementById('bsize').addEventListener('input', e => {
+    brushR = parseInt(e.target.value);
+    document.getElementById('bval').textContent = brushR;
+});
+
+document.addEventListener('keydown', e => {
+    let n = e.key;
+    if (n === 'p' || n === 'P') { paused = !paused; return; }
+    if (n === 'c' || n === 'C') { grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); return; }
+    if (n === 'l' || n === 'L') { if (lastMX >= 0) lightning(lastMX); return; }
+    if (n === 't' || n === 'T') { if (lastMX >= 0) tornado(lastMX, lastMY); return; }
+    if (n === 'q' || n === 'Q') { earthquake(); return; }
+    if (n === 'g' || n === 'G') { if (lastMX >= 0) gravityFlip(lastMX, lastMY, 15); return; }
+    for (let el of ELEMS) {
+        if (el.group) continue;
+        if (el.key === n) { selectElem(el.id); return; }
+    }
+});
+
+function paint() {
+    if (!painting && !erasing) return;
+    if (lastMX < 0) return;
+    let type = (erasing || curElem === E.ERASER) ? E.EMPTY : curElem;
+    let pxCount = 0;
+    for (let dx = -brushR; dx <= brushR; dx++) for (let dy = -brushR; dy <= brushR; dy++) {
+        if (dx * dx + dy * dy > brushR * brushR) continue;
+        let px = lastMX + dx, py = lastMY + dy;
+        if (px < 0 || px >= W || py < 0 || py >= H) continue;
+        // Allow overwriting existing elements
+        if (!erasing && Math.random() < 0.15) continue;
+        set(px, py, type);
+        pxCount++;
+    }
+    if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
+}
+
+// --- LIGHTNING: strikes from top of screen down to target ---
+function lightning(tx) {
+    let lx = tx;
+    for (let y = 0; y < H; y++) {
+        let b = get(lx, y);
+        if (b === E.EMPTY) {
+            set(lx, y, E.SPARK);
+        } else if (b === E.WATER) {
+            // Electrify water in radius
+            for (let dx2 = -3; dx2 <= 3; dx2++) for (let dy2 = -2; dy2 <= 2; dy2++) {
+                if (get(lx + dx2, y + dy2) === E.WATER && Math.random() < 0.3) set(lx + dx2, y + dy2, E.SPARK);
+            }
+            break;
+        } else if (b === E.GUNPOWDER || b === E.C4 || b === E.NITRO) {
+            explode(lx, y, b === E.C4 ? 12 : b === E.NITRO ? 10 : 6);
+            break;
+        } else if (isFlammable(lx, y)) {
+            set(lx, y, E.FIRE);
+            break;
+        } else if (b !== E.SPARK && b !== E.LASER) {
+            break; // hit solid
+        }
+        // Slight zigzag
+        if (Math.random() < 0.2) lx += Math.random() < 0.5 ? -1 : 1;
+        if (lx < 0) lx = 0; if (lx >= W) lx = W - 1;
+    }
+}
+
+// ===================== UI =====================
+function buildUI() {
+    let tb = document.getElementById('toolbar');
+    for (let el of ELEMS) {
+        // Group header
+        if (el.group) {
+            let hdr = document.createElement('div');
+            hdr.style.cssText = 'width:100%;font-size:9px;color:#ff8844;padding:2px 4px;font-weight:bold;background:rgba(255,136,68,0.1);border-radius:3px;margin:1px 0';
+            hdr.textContent = el.name;
+            tb.appendChild(hdr);
+            continue;
+        }
+        let btn = document.createElement('div');
+        btn.className = 'btn';
+        btn.style.background = el.col;
+        let light = [E.SALT,E.SNOW,E.ICE,E.GLASS,E.COTTON,E.SOAP,E.CLOUD,E.FROST,E.HELIUM,E.WAX,E.C4,E.YEAST,E.SPONGE,E.PHOSPHORUS,E.SPARK,E.SAND,E.IRON,E.GOLD_M,E.LAMP,E.LIGHT,E.BIRD,E.FIREFLY,E.ACID,E.LIFE,E.BATTERY,E.URANIUM,E.TOXIC,E.GAS,E.DUST,E.TITANIUM,E.MERCURY,E.HUMAN,E.QUICKSAND,E.DIAMOND,E.MIRROR,E.FISH,E.COPPER,E.ACID_CLOUD,E.CLAY,E.CONCRETE,E.CONCRETE_DRY,E.TORCH,E.REPULSOR,E.RADIATION,E.PURIFY].includes(el.id);
+        btn.style.color = light ? '#222' : '#fff';
+        btn.textContent = el.name + (el.key ? ' [' + el.key + ']' : '');
+        btn.addEventListener('click', () => selectElem(el.id));
+        btn.id = 'btn-' + el.id;
+        tb.appendChild(btn);
+    }
+    selectElem(E.SAND);
+}
+
+function selectElem(id) {
+    curElem = id;
+    document.querySelectorAll('.btn').forEach(b => b.classList.remove('sel'));
+    let b = document.getElementById('btn-' + id);
+    if (b) b.classList.add('sel');
+}
+
+// ===================== MAIN LOOP =====================
+let lastTime = 0;
+let fpsTime = 0, fpsCnt = 0, fpsVal = 60;
+let simSpeed = 1;
+document.getElementById('sspeed').addEventListener('input', e => {
+    simSpeed = parseInt(e.target.value);
+    document.getElementById('sval').textContent = simSpeed === 0 ? '⏸' : simSpeed + 'x';
+});
+function loop(time) {
+    let dt = time - lastTime;
+    if (dt >= 16) {
+        lastTime = time;
+        paint();
+        if (!paused) {
+            for (let s = 0; s < simSpeed; s++) simulate();
+        }
+        draw();
+        // FPS counter
+        fpsCnt++;
+        if (time - fpsTime >= 1000) {
+            fpsVal = fpsCnt;
+            fpsCnt = 0;
+            fpsTime = time;
+        }
+        if (showFps) {
+            X.fillStyle = '#fff';
+            X.font = '11px monospace';
+            X.textAlign = 'left';
+            X.fillText(fpsVal + ' FPS', 5, 12);
+        }
+    }
+    requestAnimationFrame(loop);
+}
+
+// ===================== SAVE / LOAD =====================
+function saveGame() {
+    let slot = document.getElementById('saveSlot').value;
+    // Compress: RLE encode the grid
+    let data = [];
+    let i = 0;
+    while (i < grid.length) {
+        let val = grid[i];
+        let count = 1;
+        while (i + count < grid.length && grid[i + count] === val && count < 255) count++;
+        data.push(val, count);
+        i += count;
+    }
+    let bytes = new Uint8Array(data);
+    let str = '';
+    for (let j = 0; j < bytes.length; j += 8192) {
+        str += String.fromCharCode.apply(null, bytes.subarray(j, j + 8192));
+    }
+    str = btoa(str);
+    try {
+        localStorage.setItem('sandbox_save_' + slot, str);
+        localStorage.setItem('sandbox_save_' + slot + '_date', new Date().toLocaleString());
+        updateSlotLabels();
+        if (typeof profileTrackSave === 'function') profileTrackSave();
+        alert('Uloženo do Slot ' + slot + '!');
+    } catch(e) {
+        alert('Chyba při ukládání: ' + e.message);
+    }
+}
+
+function loadGame() {
+    let slot = document.getElementById('saveSlot').value;
+    let str = localStorage.getItem('sandbox_save_' + slot);
+    if (!str) { alert('Slot ' + slot + ' je prázdný!'); return; }
+    try {
+        let bytes = Uint8Array.from(atob(str), c => c.charCodeAt(0));
+        grid.fill(0);
+        let gi = 0;
+        for (let i = 0; i < bytes.length; i += 2) {
+            let val = bytes[i];
+            let count = bytes[i + 1];
+            for (let j = 0; j < count && gi < grid.length; j++) {
+                grid[gi++] = val;
+            }
+        }
+        alert('Načteno ze Slot ' + slot + '!');
+    } catch(e) {
+        alert('Chyba při načítání: ' + e.message);
+    }
+}
+
+function updateSlotLabels() {
+    let sel = document.getElementById('saveSlot');
+    for (let i = 0; i < sel.options.length; i++) {
+        let s = sel.options[i].value;
+        let date = localStorage.getItem('sandbox_save_' + s + '_date');
+        sel.options[i].textContent = 'Slot ' + s + (date ? ' (' + date + ')' : ' (prázdný)');
+    }
+}
+
+// ===================== MENU =====================
+function startNew() {
+    grid.fill(0);
+    updated.fill(0);
+    paused = false;
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game').style.display = 'flex';
+    // Re-init canvas size (may be 0 when game div was hidden)
+    C.width = W * SCALE;
+    C.height = H * SCALE;
+    X.imageSmoothingEnabled = false;
+}
+
+function startLoad() {
+    // Check if any save exists
+    let found = false;
+    for (let i = 1; i <= 5; i++) {
+        if (localStorage.getItem('sandbox_save_' + i)) { found = true; break; }
+    }
+    if (!found) { alert('Žádné uložené hry!'); return; }
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game').style.display = 'flex';
+    paused = false;
+    C.width = W * SCALE;
+    C.height = H * SCALE;
+    X.imageSmoothingEnabled = false;
+    // Auto-load first available slot
+    for (let i = 1; i <= 5; i++) {
+        if (localStorage.getItem('sandbox_save_' + i)) {
+            document.getElementById('saveSlot').value = i;
+            loadGame();
+            break;
+        }
+    }
+}
+
+function showHelp() {
+    document.getElementById('help').style.display = 'block';
+}
+
+function showSettings() {
+    document.getElementById('settings').style.display = 'block';
+    // Load saved settings
+    let s = JSON.parse(localStorage.getItem('sandbox_settings') || '{}');
+    if (s.worldSize) document.getElementById('setWorldSize').value = s.worldSize;
+    if (s.scale) document.getElementById('setScale').value = s.scale;
+    if (s.speed) document.getElementById('setSpeed').value = s.speed;
+    if (s.brush) { document.getElementById('setDefaultBrush').value = s.brush; document.getElementById('setDBval').textContent = s.brush; }
+    if (s.showFps !== undefined) document.getElementById('setShowFps').checked = s.showFps;
+    if (s.bgColor) document.getElementById('setBgColor').value = s.bgColor;
+}
+document.getElementById('setDefaultBrush').addEventListener('input', function() {
+    document.getElementById('setDBval').textContent = this.value;
+});
+
+let showFps = true;
+let bgColorR = 26, bgColorG = 26, bgColorB = 46;
+
+function applySettings() {
+    let worldSize = document.getElementById('setWorldSize').value;
+    let scale = parseInt(document.getElementById('setScale').value);
+    let speed = parseInt(document.getElementById('setSpeed').value);
+    let brush = parseInt(document.getElementById('setDefaultBrush').value);
+    showFps = document.getElementById('setShowFps').checked;
+    let bgColor = document.getElementById('setBgColor').value;
+
+    // Parse bg color
+    bgColorR = parseInt(bgColor.substr(1,2),16);
+    bgColorG = parseInt(bgColor.substr(3,2),16);
+    bgColorB = parseInt(bgColor.substr(5,2),16);
+    // Update bg gradient
+    for (let yy = 0; yy < H; yy++) {
+        let f = yy / H;
+        bgPix[yy*3] = Math.min(255, (bgColorR + f * 15) | 0);
+        bgPix[yy*3+1] = Math.min(255, (bgColorG + f * 10) | 0);
+        bgPix[yy*3+2] = Math.min(255, (bgColorB + f * 15) | 0);
+    }
+
+    // Apply speed
+    simSpeed = speed;
+    document.getElementById('sspeed').value = speed;
+    document.getElementById('sval').textContent = speed + 'x';
+
+    // Apply brush
+    brushR = brush;
+    document.getElementById('bsize').value = brush;
+    document.getElementById('bval').textContent = brush;
+
+    // Save settings
+    localStorage.setItem('sandbox_settings', JSON.stringify({ worldSize, scale, speed, brush, showFps, bgColor }));
+
+    document.getElementById('settings').style.display = 'none';
+
+    // World size / scale changes need reload
+    let sizes = { small: [200,150], medium: [400,300], large: [600,400] };
+    let newW = sizes[worldSize][0], newH = sizes[worldSize][1];
+    if (newW !== W || newH !== H || scale !== SCALE) {
+        alert('Změna velikosti světa/scale se projeví po restartu hry (🏠 Menu → 🎮 Nová hra).');
+    }
+}
+
+function clearAllSaves() {
+    if (!confirm('Opravdu smazat všech 5 uložených her?')) return;
+    for (let i = 1; i <= 5; i++) {
+        localStorage.removeItem('sandbox_save_' + i);
+        localStorage.removeItem('sandbox_save_' + i + '_date');
+    }
+    updateSlotLabels();
+    alert('Všechny uložené hry smazány!');
+}
+
+// Load settings on start
+(function loadSettings() {
+    let s = JSON.parse(localStorage.getItem('sandbox_settings') || '{}');
+    if (s.showFps !== undefined) showFps = s.showFps;
+    if (s.bgColor) {
+        bgColorR = parseInt(s.bgColor.substr(1,2),16);
+        bgColorG = parseInt(s.bgColor.substr(3,2),16);
+        bgColorB = parseInt(s.bgColor.substr(5,2),16);
+        for (let yy = 0; yy < H; yy++) {
+            let f = yy / H;
+            bgPix[yy*3] = Math.min(255, (bgColorR + f * 15) | 0);
+            bgPix[yy*3+1] = Math.min(255, (bgColorG + f * 10) | 0);
+            bgPix[yy*3+2] = Math.min(255, (bgColorB + f * 15) | 0);
+        }
+    }
+    if (s.speed) { simSpeed = s.speed; }
+    if (s.brush) { brushR = s.brush; }
+})();
+
+function backToMenu() {
+    paused = true;
+    document.getElementById('game').style.display = 'none';
+    document.getElementById('menu').style.display = 'flex';
+}
+
+// Menu background animation — falling sand particles
+(function menuAnim() {
+    let mc = document.getElementById('menubg');
+    if (!mc) return;
+    mc.width = window.innerWidth;
+    mc.height = window.innerHeight;
+    let mx = mc.getContext('2d');
+    let particles = [];
+    for (let i = 0; i < 200; i++) {
+        particles.push({
+            x: Math.random() * mc.width,
+            y: Math.random() * mc.height,
+            s: 1 + Math.random() * 3,
+            vy: 0.5 + Math.random() * 2,
+            col: ['#e8c84a','#ff4400','#3388dd','#44ff44','#ff6600','#ffff44','#ff3388','#44cc44'][Math.floor(Math.random()*8)]
+        });
+    }
+    function drawMenu() {
+        if (document.getElementById('menu').style.display === 'none') { requestAnimationFrame(drawMenu); return; }
+        mx.clearRect(0, 0, mc.width, mc.height);
+        for (let p of particles) {
+            mx.fillStyle = p.col;
+            mx.fillRect(p.x, p.y, p.s, p.s);
+            p.y += p.vy;
+            p.x += Math.sin(p.y * 0.02) * 0.3;
+            if (p.y > mc.height) { p.y = -5; p.x = Math.random() * mc.width; }
+        }
+        requestAnimationFrame(drawMenu);
+    }
+    drawMenu();
+})();
+
+// ===================== GALLERY =====================
+function showGallery() {
+    document.getElementById('gallery').style.display = '';
+    galleryTab('community');
+    galleryRenderGrid();
+    communityRenderGrid();
+}
+
+function galleryTab(tab) {
+    document.getElementById('galMy').style.display = tab === 'my' ? '' : 'none';
+    document.getElementById('galCommunity').style.display = tab === 'community' ? '' : 'none';
+    document.getElementById('tabMy').style.borderColor = tab === 'my' ? '#ff8844' : '#555';
+    document.getElementById('tabCommunity').style.borderColor = tab === 'community' ? '#ff8844' : '#555';
+    if (tab === 'community') communityRenderGrid();
+    if (tab === 'my') galleryRenderGrid();
+}
+
+function galleryGetAll() {
+    try {
+        return JSON.parse(localStorage.getItem('sandbox_gallery') || '[]');
+    } catch(e) { return []; }
+}
+
+function gallerySetAll(items) {
+    localStorage.setItem('sandbox_gallery', JSON.stringify(items));
+}
+
+function galleryMakeThumbnail() {
+    let tc = document.createElement('canvas');
+    tc.width = W; tc.height = H;
+    let tx = tc.getContext('2d');
+    tx.putImageData(imgData, 0, 0);
+    let sc = document.createElement('canvas');
+    sc.width = 160; sc.height = 120;
+    let sx = sc.getContext('2d');
+    sx.imageSmoothingEnabled = false;
+    sx.drawImage(tc, 0, 0, 160, 120);
+    return sc.toDataURL('image/png', 0.7);
+}
+
+function galleryCompressGrid() {
+    let data = [];
+    let i = 0;
+    while (i < grid.length) {
+        let val = grid[i];
+        let count = 1;
+        while (i + count < grid.length && grid[i + count] === val && count < 255) count++;
+        data.push(val, count);
+        i += count;
+    }
+    let bytes = new Uint8Array(data);
+    let str = '';
+    for (let j = 0; j < bytes.length; j += 8192) {
+        str += String.fromCharCode.apply(null, bytes.subarray(j, j + 8192));
+    }
+    return btoa(str);
+}
+
+function galleryDecompressGrid(b64) {
+    let bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    grid.fill(0);
+    let gi = 0;
+    for (let i = 0; i < bytes.length; i += 2) {
+        let val = bytes[i];
+        let count = bytes[i + 1];
+        for (let j = 0; j < count && gi < grid.length; j++) {
+            grid[gi++] = val;
+        }
+    }
+}
+
+function gallerySave() {
+    let name = document.getElementById('galName').value.trim();
+    if (!name) { alert('Zadej název výtvoru!'); return; }
+    let items = galleryGetAll();
+    let thumb = galleryMakeThumbnail();
+    let data = galleryCompressGrid();
+    let p = ensureProfile();
+    items.unshift({
+        name: name,
+        date: new Date().toLocaleString(),
+        data: data,
+        thumb: thumb
+    });
+    if (items.length > 50) items = items.slice(0, 50);
+    try {
+        gallerySetAll(items);
+    } catch(e) {
+        alert('Nedostatek místa! Smaž staré výtvory.');
+        return;
+    }
+    // Auto-publish to community server
+    communityPublishToServer(name, p.name || 'Anonym', '', data, thumb, avatarToDataURL(p.avatarPixels));
+    if (typeof profileTrackPublish === 'function') profileTrackPublish();
+    document.getElementById('galName').value = '';
+    galleryRenderGrid();
+}
+
+function galleryRenderGrid() {
+    let container = document.getElementById('galGrid');
+    let empty = document.getElementById('galEmpty');
+    let items = galleryGetAll();
+    container.innerHTML = '';
+    empty.style.display = items.length ? 'none' : '';
+    items.forEach((item, idx) => {
+        let card = document.createElement('div');
+        card.style.cssText = 'background:#1a1a2e;border:1px solid #444;border-radius:8px;overflow:hidden;cursor:pointer;transition:all .2s';
+        card.onmouseover = () => card.style.borderColor = '#ff8844';
+        card.onmouseout = () => card.style.borderColor = '#444';
+        card.innerHTML =
+            '<img src="' + (item.thumb || '') + '" style="width:100%;height:100px;object-fit:cover;background:#111">' +
+            '<div style="padding:6px">' +
+            '<div style="font-weight:bold;font-size:13px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
+            '<div style="font-size:10px;color:#666">' + escHtml(item.date || '') + '</div>' +
+            '<div style="display:flex;gap:4px;margin-top:4px">' +
+            '<button class="btn" style="background:#345;font-size:10px;padding:2px 6px" onclick="event.stopPropagation();galleryLoad(' + idx + ')">📂 Načíst</button>' +
+            '<button class="btn" style="background:#633;font-size:10px;padding:2px 6px" onclick="event.stopPropagation();galleryDelete(' + idx + ')">🗑</button>' +
+            '</div></div>';
+        container.appendChild(card);
+    });
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function galleryLoad(idx) {
+    let items = galleryGetAll();
+    if (!items[idx]) return;
+    if (!confirm('Načíst výtvor "' + items[idx].name + '"? Aktuální mapa se přepíše.')) return;
+    galleryDecompressGrid(items[idx].data);
+    neutronAge.fill(0);
+    wireCooldown.fill(0);
+    document.getElementById('gallery').style.display = 'none';
+}
+
+function galleryDelete(idx) {
+    let items = galleryGetAll();
+    if (!items[idx]) return;
+    if (!confirm('Smazat "' + items[idx].name + '"?')) return;
+    items.splice(idx, 1);
+    gallerySetAll(items);
+    galleryRenderGrid();
+}
+
+function galleryCopyCode(idx) {
+    let items = galleryGetAll();
+    if (!items[idx]) return;
+    let code = 'SANDBOX1:' + items[idx].name + ':' + items[idx].data;
+    navigator.clipboard.writeText(code).then(() => {
+        alert('Kód zkopírován do schránky!');
+    }).catch(() => {
+        prompt('Zkopíruj kód ručně:', code);
+    });
+}
+
+function galleryGenerateCode() {
+    let code = 'SANDBOX1:export:' + galleryCompressGrid();
+    document.getElementById('galExport').value = code;
+}
+
+function galleryExport() {
+    let code = document.getElementById('galExport').value;
+    navigator.clipboard.writeText(code).then(() => {
+        alert('Kód zkopírován do schránky!');
+    }).catch(() => {
+        document.getElementById('galExport').select();
+    });
+}
+
+function galleryImport() {
+    let code = document.getElementById('galImport').value.trim();
+    if (!code) { alert('Vlož kód!'); return; }
+    if (!code.startsWith('SANDBOX1:')) { alert('Neplatný kód!'); return; }
+    let parts = code.split(':');
+    if (parts.length < 3) { alert('Neplatný kód!'); return; }
+    let name = parts[1];
+    let data = parts.slice(2).join(':');
+    try {
+        galleryDecompressGrid(data);
+        neutronAge.fill(0);
+        wireCooldown.fill(0);
+        document.getElementById('galImport').value = '';
+        document.getElementById('gallery').style.display = 'none';
+        // Offer to publish to community
+        if (confirm('Výtvor "' + name + '" načten!\n\nChceš ho přidat do komunity, ať ho vidí ostatní?')) {
+            let items = communityGetAll();
+            items.unshift({
+                id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+                name: name,
+                author: 'Import',
+                desc: 'Importováno z kódu',
+                date: new Date().toLocaleString(),
+                ts: Date.now(),
+                data: data,
+                thumb: galleryMakeThumbnail(),
+                likes: 0,
+                likedByMe: false
+            });
+            if (items.length > 200) items = items.slice(0, 200);
+            communitySetAll(items);
+        }
+    } catch(e) {
+        alert('Chyba při importu: ' + e.message);
+    }
+}
+
+// ===================== COMMUNITY (ONLINE SHARED PROJECTS) =====================
+// Auto-detect: if opened from server use relative URL, if file:// use localhost
+const API_URL = (location.protocol === 'file:' ? 'http://localhost:3456' : '') + '/api/community';
+const API_HEADERS = { 'Content-Type': 'application/json' };
+let communityCache = [];
+let communityLikedIds = new Set(JSON.parse(localStorage.getItem('sandbox_liked') || '[]'));
+
+function saveLikedIds() {
+    localStorage.setItem('sandbox_liked', JSON.stringify([...communityLikedIds]));
+}
+
+async function communityFetchAll() {
+    let sort = document.getElementById('pubSort') ? document.getElementById('pubSort').value : 'newest';
+    try {
+        let resp = await fetch(API_URL + '?sort=' + sort, { headers: API_HEADERS });
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
+        communityCache = await resp.json();
+    } catch(e) {
+        console.warn('Community fetch failed:', e.message);
+        communityCache = [];
+    }
+    return communityCache;
+}
+
+function communityRenderGrid() {
+    let container = document.getElementById('galCommunityGrid');
+    let empty = document.getElementById('pubEmpty');
+    let countEl = document.getElementById('pubCount');
+    container.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Načítám...</div>';
+
+    communityFetchAll().then(items => {
+        container.innerHTML = '';
+        empty.style.display = items.length ? 'none' : '';
+        countEl.textContent = items.length + ' výtvorů';
+        items.forEach((item) => {
+            let liked = communityLikedIds.has(item.id);
+            let card = document.createElement('div');
+            card.style.cssText = 'background:#1a1a2e;border:1px solid #444;border-radius:8px;overflow:hidden;transition:all .2s';
+            card.onmouseover = () => card.style.borderColor = '#ff8844';
+            card.onmouseout = () => card.style.borderColor = '#444';
+            card.innerHTML =
+                '<img src="' + (item.thumb || '') + '" style="width:100%;height:100px;object-fit:cover;background:#111">' +
+                '<div style="padding:8px">' +
+                '<div style="font-weight:bold;font-size:13px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
+                '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#ff8844">' +
+                (item.avatar ? '<img src="' + item.avatar + '" style="width:18px;height:18px;border-radius:50%;image-rendering:pixelated;background:#222;border:1px solid #553">' : '<span>\ud83d\udc64</span>') +
+                ' ' + escHtml(item.author) + '</div>' +
+                (item.desc ? '<div style="font-size:11px;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(item.desc) + '</div>' : '') +
+                '<div style="font-size:10px;color:#555;margin-top:2px">' + escHtml(item.date || '') + '</div>' +
+                '<div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">' +
+                '<button class="btn" style="background:#345;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLoad(\'' + item.id + '\')">\ud83d\udcc2 Načíst</button>' +
+                '<button class="btn" style="background:' + (liked ? '#853' : '#453') + ';font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLike(\'' + item.id + '\')">' + (liked ? '\u2764\ufe0f' : '\ud83e\udd0d') + ' ' + (item.likes||0) + '</button>' +
+                '<button class="btn" style="background:#633;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityDelete(\'' + item.id + '\')">\ud83d\uddd1</button>' +
+                '</div></div>';
+            container.appendChild(card);
+        });
+    }).catch(e => {
+        container.innerHTML = '<div style="text-align:center;color:#f66;padding:20px">\u274c Nelze se připojit k serveru.<br><span style="font-size:11px;color:#888">Spusť: npm run server</span></div>';
+    });
+}
+
+function communityLoad(id) {
+    let item = communityCache.find(i => i.id === id);
+    if (!item) return;
+    if (!confirm('Načíst "' + item.name + '" od ' + item.author + '? Aktuální mapa se přepíše.')) return;
+    galleryDecompressGrid(item.data);
+    neutronAge.fill(0);
+    wireCooldown.fill(0);
+    document.getElementById('gallery').style.display = 'none';
+}
+
+async function communityLike(id) {
+    let liked = communityLikedIds.has(id);
+    let endpoint = liked ? '/unlike' : '/like';
+    try {
+        await fetch(API_URL + '/' + id + endpoint, { method: 'POST', headers: API_HEADERS });
+        if (liked) communityLikedIds.delete(id);
+        else communityLikedIds.add(id);
+        saveLikedIds();
+        communityRenderGrid();
+    } catch(e) {
+        alert('Chyba: ' + e.message);
+    }
+}
+
+async function communityDelete(id) {
+    let item = communityCache.find(i => i.id === id);
+    if (!item) return;
+    if (!confirm('Smazat "' + item.name + '" z komunity?')) return;
+    try {
+        await fetch(API_URL + '/' + id, { method: 'DELETE', headers: API_HEADERS });
+        communityRenderGrid();
+    } catch(e) {
+        alert('Chyba: ' + e.message);
+    }
+}
+
+async function communityPublishToServer(name, author, desc, data, thumb, avatar) {
+    try {
+        let resp = await fetch(API_URL, {
+            method: 'POST',
+            headers: API_HEADERS,
+            body: JSON.stringify({ name, author, desc, data, thumb, avatar })
+        });
+        if (!resp.ok) throw new Error('Server error ' + resp.status);
+        return true;
+    } catch(e) {
+        console.warn('Publish failed:', e.message);
+        return false;
+    }
+}
+
+// ===================== PROFILE =====================
+const AVATARS = ['🧑‍💻','👾','🤖','🎮','🧙','🐉','🦊','🐱','🐶','🦄','👽','💀','🎭','🦅','🐧','🌟','🔥','❄️','⚡','🌈','🎯','🚀','🏆','💎','🌍','🎨','🧪','☢️','🌋','🏖️'];
+
+// Avatar pixel art editor (12x12)
+const AVATAR_SIZE = 12;
+const AVATAR_CELL = 16; // canvas cell size for editing
+const AVATAR_PALETTE = [
+    '#000000','#ffffff','#ff0000','#ff8844','#ffff00','#88ff00',
+    '#00cc00','#00cccc','#0066ff','#8833ff','#ff44aa','#ff88cc',
+    '#884400','#cc8855','#ffccaa','#888888','#444444','#222222',
+    '#ff6600','#aaff00','#00ffcc','#4488ff','#cc44ff','#ff2266',
+    '#663300','#996633','#cc9966','#bbbbbb','#666666','#111111'
+];
+let avatarGrid = new Array(AVATAR_SIZE * AVATAR_SIZE).fill('');
+let avatarColor = '#ff8844';
+let avatarTool = 'draw';
+let avatarPainting = false;
+
+function avatarEditorToggle() {
+    let ed = document.getElementById('avatarEditor');
+    ed.style.display = ed.style.display === 'none' ? '' : 'none';
+    if (ed.style.display !== 'none') avatarInitEditor();
+}
+
+function avatarInitEditor() {
+    // Load from profile
+    let p = ensureProfile();
+    if (p.avatarPixels && p.avatarPixels.length === AVATAR_SIZE * AVATAR_SIZE) {
+        avatarGrid = p.avatarPixels.slice();
+    }
+    // Build palette
+    let palDiv = document.getElementById('avatarPalette');
+    palDiv.innerHTML = '';
+    AVATAR_PALETTE.forEach(col => {
+        let d = document.createElement('div');
+        d.style.cssText = 'width:20px;height:20px;border-radius:3px;cursor:pointer;border:2px solid ' + (col === avatarColor ? '#fff' : '#333');
+        d.style.background = col;
+        d.onclick = () => {
+            avatarColor = col;
+            avatarTool = 'draw';
+            palDiv.querySelectorAll('div').forEach(c => c.style.borderColor = '#333');
+            d.style.borderColor = '#fff';
+        };
+        palDiv.appendChild(d);
+    });
+    avatarDrawEditor();
+
+    // Canvas events
+    let ac = document.getElementById('avatarCanvas');
+    ac.onmousedown = e => { avatarPainting = true; avatarPaintAt(e); };
+    ac.onmousemove = e => { if (avatarPainting) avatarPaintAt(e); };
+    ac.onmouseup = () => { avatarPainting = false; avatarSavePixels(); };
+    ac.onmouseleave = () => { avatarPainting = false; };
+    ac.oncontextmenu = e => e.preventDefault();
+}
+
+function avatarPaintAt(e) {
+    let ac = document.getElementById('avatarCanvas');
+    let rect = ac.getBoundingClientRect();
+    let scale = ac.width / rect.width;
+    let x = Math.floor((e.clientX - rect.left) * scale / AVATAR_CELL);
+    let y = Math.floor((e.clientY - rect.top) * scale / AVATAR_CELL);
+    if (x < 0 || x >= AVATAR_SIZE || y < 0 || y >= AVATAR_SIZE) return;
+    if (avatarTool === 'erase' || e.buttons === 2) {
+        avatarGrid[y * AVATAR_SIZE + x] = '';
+    } else {
+        avatarGrid[y * AVATAR_SIZE + x] = avatarColor;
+    }
+    avatarDrawEditor();
+    avatarUpdatePreview();
+}
+
+function avatarDrawEditor() {
+    let ac = document.getElementById('avatarCanvas');
+    let ctx = ac.getContext('2d');
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, ac.width, ac.height);
+    for (let y = 0; y < AVATAR_SIZE; y++) {
+        for (let x = 0; x < AVATAR_SIZE; x++) {
+            let col = avatarGrid[y * AVATAR_SIZE + x];
+            if (col) {
+                ctx.fillStyle = col;
+                ctx.fillRect(x * AVATAR_CELL, y * AVATAR_CELL, AVATAR_CELL, AVATAR_CELL);
+            } else {
+                // Checkerboard for transparent
+                ctx.fillStyle = (x + y) % 2 === 0 ? '#222' : '#2a2a2a';
+                ctx.fillRect(x * AVATAR_CELL, y * AVATAR_CELL, AVATAR_CELL, AVATAR_CELL);
+            }
+        }
+    }
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= AVATAR_SIZE; i++) {
+        ctx.beginPath(); ctx.moveTo(i * AVATAR_CELL, 0); ctx.lineTo(i * AVATAR_CELL, ac.height); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * AVATAR_CELL); ctx.lineTo(ac.width, i * AVATAR_CELL); ctx.stroke();
+    }
+}
+
+function avatarUpdatePreview() {
+    let pc = document.getElementById('profAvatarPreview');
+    let ctx = pc.getContext('2d');
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, 72, 72);
+    let cs = 72 / AVATAR_SIZE; // 6px per cell
+    for (let y = 0; y < AVATAR_SIZE; y++) {
+        for (let x = 0; x < AVATAR_SIZE; x++) {
+            let col = avatarGrid[y * AVATAR_SIZE + x];
+            if (col) {
+                ctx.fillStyle = col;
+                ctx.fillRect(x * cs, y * cs, cs, cs);
+            }
+        }
+    }
+}
+
+function avatarSavePixels() {
+    let p = ensureProfile();
+    p.avatarPixels = avatarGrid.slice();
+    setProfile(p);
+}
+
+function avatarClear() {
+    avatarGrid.fill('');
+    avatarDrawEditor();
+    avatarUpdatePreview();
+    avatarSavePixels();
+}
+
+function avatarFill() {
+    avatarGrid.fill(avatarColor);
+    avatarDrawEditor();
+    avatarUpdatePreview();
+    avatarSavePixels();
+}
+
+function avatarPreset(type) {
+    avatarGrid.fill('');
+    const S = AVATAR_SIZE;
+    function px(x, y, c) { if (x >= 0 && x < S && y >= 0 && y < S) avatarGrid[y*S+x] = c; }
+    if (type === 'face') {
+        // Circle face
+        for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+            let dx = x-5.5, dy = y-5.5;
+            if (dx*dx+dy*dy <= 25) px(x,y,'#ffccaa');
+        }
+        px(4,4,'#333'); px(7,4,'#333'); // eyes
+        for (let x = 4; x <= 7; x++) px(x,8,'#cc5533'); // mouth
+        px(3,8,'#ffccaa'); px(8,8,'#ffccaa');
+    } else if (type === 'robot') {
+        for (let y = 1; y < 11; y++) for (let x = 2; x < 10; x++) px(x,y,'#888888');
+        for (let x = 2; x < 10; x++) { px(x,0,'#666666'); px(x,11,'#666666'); }
+        px(4,3,'#00ffcc'); px(7,3,'#00ffcc'); // eyes
+        px(4,4,'#00ffcc'); px(7,4,'#00ffcc');
+        for (let x = 4; x <= 7; x++) px(x,7,'#444444'); // mouth
+        px(5,0,'#ff0000'); px(6,0,'#ff0000'); // antenna
+    } else if (type === 'skull') {
+        for (let y = 1; y < 10; y++) for (let x = 2; x < 10; x++) {
+            let dx = x-5.5, dy = y-5;
+            if (dx*dx/(16)+dy*dy/(20) <= 1) px(x,y,'#ffffff');
+        }
+        px(4,4,'#000000'); px(7,4,'#000000'); // eyes
+        px(4,5,'#000000'); px(7,5,'#000000');
+        px(5,7,'#000000'); px(6,7,'#000000'); // nose
+        for (let x = 3; x <= 8; x++) px(x,9,'#ffffff');
+        for (let x = 4; x <= 7; x++) px(x,10,'#dddddd');
+        px(4,9,'#000000'); px(6,9,'#000000'); // teeth gaps
+    } else if (type === 'heart') {
+        let h = [[4,1],[5,1],[6,1],[7,1],[3,2],[4,2],[7,2],[8,2],[2,3],[3,3],[8,3],[9,3],
+            [2,4],[9,4],[2,5],[9,5],[3,6],[8,6],[4,7],[7,7],[5,8],[6,8],[5,9],[6,9]];
+        for (let y = 1; y < 11; y++) for (let x = 1; x < 11; x++) {
+            let dx1=x-4,dy1=y-3,dx2=x-7,dy2=y-3;
+            if ((dx1*dx1+dy1*dy1<=5||dx2*dx2+dy2*dy2<=5)&&y<=4) px(x,y,'#ff2266');
+            if (y>3&&y<10&&x>=(y-2)&&x<=(13-y)) px(x,y,'#ff2266');
+        }
+    } else if (type === 'star') {
+        let pts = [[5,0],[6,0],[4,1],[5,1],[6,1],[7,1],[3,2],[4,2],[5,2],[6,2],[7,2],[8,2],
+            [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],[8,3],[9,3],[10,3],[11,3],
+            [1,4],[2,4],[3,4],[4,4],[5,4],[6,4],[7,4],[8,4],[9,4],[10,4],
+            [2,5],[3,5],[4,5],[5,5],[6,5],[7,5],[8,5],[9,5],
+            [3,6],[4,6],[5,6],[6,6],[7,6],[8,6],
+            [2,7],[3,7],[4,7],[5,7],[6,7],[7,7],[8,7],[9,7],
+            [1,8],[2,8],[3,8],[8,8],[9,8],[10,8],
+            [0,9],[1,9],[2,9],[9,9],[10,9],[11,9]];
+        pts.forEach(([x,y]) => px(x,y,'#ffdd00'));
+    } else if (type === 'cat') {
+        // Ears
+        px(2,0,'#aa6633'); px(3,1,'#aa6633'); px(9,0,'#aa6633'); px(8,1,'#aa6633');
+        px(2,1,'#aa6633'); px(9,1,'#aa6633');
+        // Head
+        for (let y = 2; y < 10; y++) for (let x = 2; x < 10; x++) {
+            let dx=x-5.5,dy=y-5.5;
+            if (dx*dx+dy*dy<=18) px(x,y,'#cc8844');
+        }
+        px(4,4,'#22aa22'); px(7,4,'#22aa22'); // eyes
+        px(5,6,'#ffaaaa'); px(6,6,'#ffaaaa'); // nose
+        // Whiskers
+        px(1,5,'#cc8844'); px(2,5,'#cc8844'); px(9,5,'#cc8844'); px(10,5,'#cc8844');
+        px(1,6,'#cc8844'); px(10,6,'#cc8844');
+    }
+    avatarDrawEditor();
+    avatarUpdatePreview();
+    avatarSavePixels();
+}
+
+const ACHIEVEMENTS = [
+    { id: 'first_save', icon: '💾', name: 'První uložení', desc: 'Ulož svůj první výtvor', check: p => p.saves >= 1 },
+    { id: 'five_saves', icon: '📁', name: 'Sběratel', desc: 'Ulož 5 výtvorů', check: p => p.saves >= 5 },
+    { id: 'first_pub', icon: '🚀', name: 'Publikováno!', desc: 'Publikuj první výtvor', check: p => p.published >= 1 },
+    { id: 'ten_pub', icon: '🌟', name: 'Hvězda komunity', desc: 'Publikuj 10 výtvorů', check: p => p.published >= 10 },
+    { id: 'pixels_1k', icon: '🖱️', name: 'Kreslíř', desc: 'Nakresli 1 000 pixelů', check: p => p.pixels >= 1000 },
+    { id: 'pixels_100k', icon: '🎨', name: 'Umělec', desc: 'Nakresli 100 000 pixelů', check: p => p.pixels >= 100000 },
+    { id: 'pixels_1m', icon: '🖼️', name: 'Mistr plátna', desc: 'Nakresli 1 000 000 pixelů', check: p => p.pixels >= 1000000 },
+    { id: 'time_30', icon: '⏱️', name: 'Časožrout', desc: 'Hraj 30 minut', check: p => p.timePlayed >= 30 },
+    { id: 'time_300', icon: '⏰', name: 'Závislák', desc: 'Hraj 5 hodin', check: p => p.timePlayed >= 300 },
+    { id: 'likes_10', icon: '❤️', name: 'Oblíbený', desc: 'Získej 10 lajků', check: p => p.totalLikes >= 10 },
+    { id: 'likes_50', icon: '💖', name: 'Populární', desc: 'Získej 50 lajků', check: p => p.totalLikes >= 50 },
+];
+
+const LEVELS = [
+    { name: 'Nováček', xp: 0 },
+    { name: 'Začátečník', xp: 100 },
+    { name: 'Učeň', xp: 300 },
+    { name: 'Tvůrce', xp: 600 },
+    { name: 'Stavitel', xp: 1000 },
+    { name: 'Architekt', xp: 2000 },
+    { name: 'Mistr', xp: 4000 },
+    { name: 'Velmistr', xp: 7000 },
+    { name: 'Legenda', xp: 12000 },
+    { name: 'Bůh písku', xp: 20000 },
+];
+
+function getProfile() {
+    try { return JSON.parse(localStorage.getItem('sandbox_profile') || '{}'); }
+    catch(e) { return {}; }
+}
+
+function setProfile(p) {
+    localStorage.setItem('sandbox_profile', JSON.stringify(p));
+}
+
+function ensureProfile() {
+    let p = getProfile();
+    if (!p.name) p.name = '';
+    if (!p.bio) p.bio = '';
+    if (!p.avatar) p.avatar = 0;
+    if (!p.pixels) p.pixels = 0;
+    if (!p.saves) p.saves = 0;
+    if (!p.published) p.published = 0;
+    if (!p.timePlayed) p.timePlayed = 0;
+    if (!p.totalLikes) p.totalLikes = 0;
+    if (!p.achievements) p.achievements = [];
+    if (!p.xp) p.xp = 0;
+    if (!p.sessionStart) p.sessionStart = Date.now();
+    return p;
+}
+
+function profileAddXP(amount) {
+    let p = ensureProfile();
+    p.xp = (p.xp || 0) + amount;
+    setProfile(p);
+}
+
+function profileTrackPixels(count) {
+    let p = ensureProfile();
+    p.pixels = (p.pixels || 0) + count;
+    setProfile(p);
+}
+
+function profileTrackSave() {
+    let p = ensureProfile();
+    p.saves = (p.saves || 0) + 1;
+    profileAddXP(10);
+    setProfile(p);
+}
+
+function profileTrackPublish() {
+    let p = ensureProfile();
+    p.published = (p.published || 0) + 1;
+    profileAddXP(25);
+    setProfile(p);
+}
+
+function profileUpdateTime() {
+    let p = ensureProfile();
+    let now = Date.now();
+    let elapsed = Math.floor((now - (p.sessionStart || now)) / 60000);
+    if (elapsed > 0) {
+        p.timePlayed = (p.timePlayed || 0) + elapsed;
+        p.sessionStart = now;
+        setProfile(p);
+    }
+}
+
+function profileCalcLikes() {
+    let items = communityGetAll();
+    let p = ensureProfile();
+    let name = p.name;
+    let total = 0;
+    if (name) {
+        items.forEach(it => { if (it.author === name) total += (it.likes || 0); });
+    }
+    p.totalLikes = total;
+    setProfile(p);
+    return total;
+}
+
+function profileGetLevel(xp) {
+    let lvl = LEVELS[0];
+    for (let i = LEVELS.length - 1; i >= 0; i--) {
+        if (xp >= LEVELS[i].xp) { lvl = LEVELS[i]; break; }
+    }
+    return lvl;
+}
+
+function profileGetNextLevel(xp) {
+    for (let i = 0; i < LEVELS.length; i++) {
+        if (xp < LEVELS[i].xp) return LEVELS[i];
+    }
+    return LEVELS[LEVELS.length - 1];
+}
+
+function profileCheckAchievements() {
+    let p = ensureProfile();
+    let unlocked = p.achievements || [];
+    let newOnes = [];
+    ACHIEVEMENTS.forEach(a => {
+        if (!unlocked.includes(a.id) && a.check(p)) {
+            unlocked.push(a.id);
+            newOnes.push(a);
+            p.xp = (p.xp || 0) + 50;
+        }
+    });
+    p.achievements = unlocked;
+    setProfile(p);
+    return newOnes;
+}
+
+function showProfile() {
+    profileUpdateTime();
+    profileCalcLikes();
+    let newAch = profileCheckAchievements();
+    let p = ensureProfile();
+
+    document.getElementById('profName').value = p.name || '';
+    document.getElementById('profBio').value = p.bio || '';
+    // Load avatar pixels to preview
+    if (p.avatarPixels && p.avatarPixels.length === AVATAR_SIZE * AVATAR_SIZE) {
+        avatarGrid = p.avatarPixels.slice();
+    }
+    avatarUpdatePreview();
+    document.getElementById('avatarEditor').style.display = 'none';
+
+    // Stats
+    document.getElementById('profTimePlayed').textContent = p.timePlayed < 60 ? p.timePlayed + ' min' : Math.floor(p.timePlayed/60) + 'h ' + (p.timePlayed%60) + 'm';
+    document.getElementById('profSaves').textContent = p.saves || 0;
+    document.getElementById('profPublished').textContent = p.published || 0;
+    document.getElementById('profPixels').textContent = (p.pixels||0).toLocaleString();
+    document.getElementById('profLikes').textContent = p.totalLikes || 0;
+
+    let lvl = profileGetLevel(p.xp || 0);
+    let next = profileGetNextLevel(p.xp || 0);
+    document.getElementById('profLevel').textContent = lvl.name;
+    document.getElementById('profXP').textContent = p.xp || 0;
+    document.getElementById('profXPNext').textContent = next.xp;
+    let pct = next.xp > lvl.xp ? Math.min(100, ((p.xp - lvl.xp) / (next.xp - lvl.xp)) * 100) : 100;
+    document.getElementById('profXPBar').style.width = pct + '%';
+
+    // Achievements
+    let achDiv = document.getElementById('profAchievements');
+    achDiv.innerHTML = '';
+    ACHIEVEMENTS.forEach(a => {
+        let unlocked = (p.achievements || []).includes(a.id);
+        let el = document.createElement('div');
+        el.style.cssText = 'padding:6px 8px;border-radius:6px;font-size:11px;text-align:center;min-width:70px;' +
+            (unlocked ? 'background:#332;border:1px solid #ff8844;color:#eee' : 'background:#1a1a1a;border:1px solid #333;color:#555');
+        el.innerHTML = '<div style="font-size:20px">' + a.icon + '</div>' +
+            '<div style="font-weight:bold">' + escHtml(a.name) + '</div>' +
+            '<div style="font-size:9px;color:' + (unlocked ? '#888' : '#444') + '">' + escHtml(a.desc) + '</div>';
+        el.title = a.desc;
+        achDiv.appendChild(el);
+    });
+
+    document.getElementById('profile').style.display = '';
+
+    // Notify new achievements
+    if (newAch.length > 0) {
+        setTimeout(() => {
+            alert('🏅 Nový úspěch!\n\n' + newAch.map(a => a.icon + ' ' + a.name).join('\n'));
+        }, 300);
+    }
+}
+
+function profileSave() {
+    let p = ensureProfile();
+    p.name = document.getElementById('profName').value.trim();
+    p.bio = document.getElementById('profBio').value.trim();
+    p.avatarPixels = avatarGrid.slice();
+    setProfile(p);
+    // Update author field in community publish
+    let pubAuth = document.getElementById('pubAuthor');
+    if (pubAuth && !pubAuth.value) pubAuth.value = p.name;
+    document.getElementById('profile').style.display = '';
+    document.getElementById('profile').style.display = 'none';
+}
+
+// (profileCycleAvatar removed — replaced by pixel editor)
+
+function avatarToDataURL(pixels) {
+    if (!pixels || pixels.length !== AVATAR_SIZE * AVATAR_SIZE) return '';
+    let c = document.createElement('canvas');
+    c.width = AVATAR_SIZE; c.height = AVATAR_SIZE;
+    let ctx = c.getContext('2d');
+    for (let y = 0; y < AVATAR_SIZE; y++) {
+        for (let x = 0; x < AVATAR_SIZE; x++) {
+            let col = pixels[y * AVATAR_SIZE + x];
+            if (col) {
+                ctx.fillStyle = col;
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    }
+    return c.toDataURL('image/png');
+}
+
+// Track time every 5 minutes
+setInterval(() => { let p = ensureProfile(); profileUpdateTime(); }, 300000);
+// Init session start
+(function() { let p = ensureProfile(); p.sessionStart = Date.now(); setProfile(p); })();
+
+buildUI();
+updateSlotLabels();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
