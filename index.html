@@ -228,6 +228,7 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0}
         <div style="display:flex;gap:8px;justify-content:center;margin-bottom:16px;flex-wrap:wrap">
             <div class="mbtn" id="tabMy" onclick="galleryTab('my')" style="display:inline-block;width:auto;padding:8px 20px;font-size:13px">📁 Moje výtvory</div>
             <div class="mbtn" id="tabCommunity" onclick="galleryTab('community')" style="display:inline-block;width:auto;padding:8px 20px;font-size:13px">👥 Komunita</div>
+            <div class="mbtn" id="tabShare" onclick="galleryTab('share')" style="display:inline-block;width:auto;padding:8px 20px;font-size:13px">📤 Sdílet / Importovat</div>
         </div>
 
         <!-- My creations -->
@@ -242,6 +243,15 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0}
 
         <!-- Community -->
         <div id="galCommunity" style="display:none">
+            <div style="background:rgba(255,136,68,0.08);border:1px solid #553;border-radius:8px;padding:12px;margin-bottom:14px">
+                <h3 style="color:#ff8844;font-size:14px;margin:0 0 8px 0">📤 Publikovat výtvor</h3>
+                <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                    <input id="pubName" type="text" placeholder="Název..." maxlength="40" style="flex:2;min-width:120px;padding:6px;background:#222;color:#eee;border:1px solid #555;border-radius:4px;font-size:13px">
+                    <input id="pubAuthor" type="text" placeholder="Autor..." maxlength="20" style="flex:1;min-width:80px;padding:6px;background:#222;color:#eee;border:1px solid #555;border-radius:4px;font-size:13px">
+                    <input id="pubDesc" type="text" placeholder="Popis..." maxlength="80" style="flex:3;min-width:150px;padding:6px;background:#222;color:#eee;border:1px solid #555;border-radius:4px;font-size:13px">
+                    <div class="mbtn" onclick="communityPublish()" style="display:inline-block;width:auto;padding:6px 14px;font-size:12px;margin:0">🚀 Publikovat</div>
+                </div>
+            </div>
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
                 <span style="font-size:12px;color:#888">Řazení:</span>
                 <select id="pubSort" onchange="communityRenderGrid()" style="padding:4px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;font-size:11px">
@@ -255,8 +265,24 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0}
             <p id="pubEmpty" style="text-align:center;color:#666;margin-top:20px">Zatím nic. Buď první kdo publikuje!</p>
         </div>
 
-        <!-- Share / Import (hidden) -->
-        <div id="galShare" style="display:none"></div>
+        <!-- Share / Import -->
+        <div id="galShare" style="display:none">
+            <p style="color:#888;font-size:13px;margin-bottom:12px;text-align:center">Zkopíruj kód a pošli kamarádovi, nebo vlož kód od někoho jiného.</p>
+            <div style="margin-bottom:16px">
+                <label style="font-size:12px;color:#888">📤 Exportovat aktuální mapu:</label>
+                <div style="display:flex;gap:6px;margin-top:4px">
+                    <textarea id="galExport" readonly style="flex:1;height:60px;background:#111;color:#8f8;border:1px solid #555;border-radius:6px;padding:6px;font-family:monospace;font-size:10px;resize:none"></textarea>
+                    <div class="mbtn" onclick="galleryExport()" style="display:inline-block;width:auto;padding:8px 12px;font-size:12px;margin:0;align-self:start">📋 Kopírovat</div>
+                </div>
+            </div>
+            <div>
+                <label style="font-size:12px;color:#888">📥 Importovat kód:</label>
+                <div style="display:flex;gap:6px;margin-top:4px">
+                    <textarea id="galImport" placeholder="Vlož kód sem..." style="flex:1;height:60px;background:#111;color:#eee;border:1px solid #555;border-radius:6px;padding:6px;font-family:monospace;font-size:10px;resize:none"></textarea>
+                    <div class="mbtn" onclick="galleryImport()" style="display:inline-block;width:auto;padding:8px 12px;font-size:12px;margin:0;align-self:start">📥 Načíst</div>
+                </div>
+            </div>
+        </div>
 
         <br>
         <div style="text-align:center">
@@ -3632,18 +3658,24 @@ function backToMenu() {
 // ===================== GALLERY =====================
 function showGallery() {
     document.getElementById('gallery').style.display = '';
-    galleryTab('community');
+    galleryTab('my');
     galleryRenderGrid();
-    communityRenderGrid();
+    galleryGenerateCode();
+    // Auto-fill author from profile
+    let prof = getProfile();
+    let pubAuth = document.getElementById('pubAuthor');
+    if (pubAuth && !pubAuth.value && prof.name) pubAuth.value = prof.name;
 }
 
 function galleryTab(tab) {
     document.getElementById('galMy').style.display = tab === 'my' ? '' : 'none';
     document.getElementById('galCommunity').style.display = tab === 'community' ? '' : 'none';
+    document.getElementById('galShare').style.display = tab === 'share' ? '' : 'none';
     document.getElementById('tabMy').style.borderColor = tab === 'my' ? '#ff8844' : '#555';
     document.getElementById('tabCommunity').style.borderColor = tab === 'community' ? '#ff8844' : '#555';
+    document.getElementById('tabShare').style.borderColor = tab === 'share' ? '#ff8844' : '#555';
+    if (tab === 'share') galleryGenerateCode();
     if (tab === 'community') communityRenderGrid();
-    if (tab === 'my') galleryRenderGrid();
 }
 
 function galleryGetAll() {
@@ -3704,14 +3736,11 @@ function gallerySave() {
     let name = document.getElementById('galName').value.trim();
     if (!name) { alert('Zadej název výtvoru!'); return; }
     let items = galleryGetAll();
-    let thumb = galleryMakeThumbnail();
-    let data = galleryCompressGrid();
-    let p = ensureProfile();
     items.unshift({
         name: name,
         date: new Date().toLocaleString(),
-        data: data,
-        thumb: thumb
+        data: galleryCompressGrid(),
+        thumb: galleryMakeThumbnail()
     });
     if (items.length > 50) items = items.slice(0, 50);
     try {
@@ -3720,24 +3749,6 @@ function gallerySave() {
         alert('Nedostatek místa! Smaž staré výtvory.');
         return;
     }
-    // Auto-publish to community
-    let communityItems = communityGetAll();
-    communityItems.unshift({
-        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
-        name: name,
-        author: p.name || 'Anonym',
-        desc: '',
-        date: new Date().toLocaleString(),
-        ts: Date.now(),
-        data: data,
-        thumb: thumb,
-        avatar: avatarToDataURL(p.avatarPixels),
-        likes: 0,
-        likedByMe: false
-    });
-    if (communityItems.length > 200) communityItems = communityItems.slice(0, 200);
-    try { communitySetAll(communityItems); } catch(e) {}
-    if (typeof profileTrackPublish === 'function') profileTrackPublish();
     document.getElementById('galName').value = '';
     galleryRenderGrid();
 }
@@ -3760,6 +3771,7 @@ function galleryRenderGrid() {
             '<div style="font-size:10px;color:#666">' + escHtml(item.date || '') + '</div>' +
             '<div style="display:flex;gap:4px;margin-top:4px">' +
             '<button class="btn" style="background:#345;font-size:10px;padding:2px 6px" onclick="event.stopPropagation();galleryLoad(' + idx + ')">📂 Načíst</button>' +
+            '<button class="btn" style="background:#453;font-size:10px;padding:2px 6px" onclick="event.stopPropagation();galleryCopyCode(' + idx + ')">📋 Kód</button>' +
             '<button class="btn" style="background:#633;font-size:10px;padding:2px 6px" onclick="event.stopPropagation();galleryDelete(' + idx + ')">🗑</button>' +
             '</div></div>';
         container.appendChild(card);
@@ -3851,13 +3863,48 @@ function galleryImport() {
     }
 }
 
-// ===================== COMMUNITY (LOCAL SHARED PROJECTS) =====================
+// ===================== COMMUNITY (SHARED PROJECTS) =====================
 function communityGetAll() {
     try { return JSON.parse(localStorage.getItem('sandbox_community') || '[]'); }
     catch(e) { return []; }
 }
 function communitySetAll(items) {
     localStorage.setItem('sandbox_community', JSON.stringify(items));
+}
+
+function communityPublish() {
+    let name = document.getElementById('pubName').value.trim();
+    let author = document.getElementById('pubAuthor').value.trim() || getProfile().name || 'Anonym';
+    let desc = document.getElementById('pubDesc').value.trim();
+    if (!name) { alert('Zadej název výtvoru!'); return; }
+    let items = communityGetAll();
+    let p = ensureProfile();
+    let entry = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        name: name,
+        author: author,
+        desc: desc,
+        date: new Date().toLocaleString(),
+        ts: Date.now(),
+        data: galleryCompressGrid(),
+        thumb: galleryMakeThumbnail(),
+        avatar: avatarToDataURL(p.avatarPixels),
+        likes: 0,
+        likedByMe: false
+    };
+    items.unshift(entry);
+    if (items.length > 200) items = items.slice(0, 200);
+    try {
+        communitySetAll(items);
+    } catch(e) {
+        alert('Nedostatek místa! Smaž staré výtvory.');
+        return;
+    }
+    document.getElementById('pubName').value = '';
+    document.getElementById('pubDesc').value = '';
+    if (typeof profileTrackPublish === 'function') profileTrackPublish();
+    communityRenderGrid();
+    alert('Výtvor "' + name + '" byl publikován! 🎉');
 }
 
 function communityRenderGrid() {
@@ -3872,7 +3919,7 @@ function communityRenderGrid() {
     else sorted.sort((a, b) => (b.ts||0) - (a.ts||0));
     container.innerHTML = '';
     empty.style.display = sorted.length ? 'none' : '';
-    countEl.textContent = sorted.length + ' v\u00fdtvor\u016f';
+    countEl.textContent = sorted.length + ' výtvorů';
     sorted.forEach((item) => {
         let origIdx = items.indexOf(item);
         let card = document.createElement('div');
@@ -3884,14 +3931,15 @@ function communityRenderGrid() {
             '<div style="padding:8px">' +
             '<div style="font-weight:bold;font-size:13px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
             '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#ff8844">' +
-            (item.avatar ? '<img src="' + item.avatar + '" style="width:18px;height:18px;border-radius:50%;image-rendering:pixelated;background:#222;border:1px solid #553">' : '<span>\ud83d\udc64</span>') +
+            (item.avatar ? '<img src="' + item.avatar + '" style="width:18px;height:18px;border-radius:50%;image-rendering:pixelated;background:#222;border:1px solid #553">' : '<span>👤</span>') +
             ' ' + escHtml(item.author) + '</div>' +
             (item.desc ? '<div style="font-size:11px;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(item.desc) + '</div>' : '') +
             '<div style="font-size:10px;color:#555;margin-top:2px">' + escHtml(item.date || '') + '</div>' +
             '<div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">' +
-            '<button class="btn" style="background:#345;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLoad(' + origIdx + ')">\ud83d\udcc2 Na\u010d\u00edst</button>' +
-            '<button class="btn" style="background:' + (item.likedByMe ? '#853' : '#453') + ';font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLike(' + origIdx + ')">' + (item.likedByMe ? '\u2764\ufe0f' : '\ud83e\udd0d') + ' ' + (item.likes||0) + '</button>' +
-            '<button class="btn" style="background:#633;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityDelete(' + origIdx + ')">\ud83d\uddd1</button>' +
+            '<button class="btn" style="background:#345;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLoad(' + origIdx + ')">📂 Načíst</button>' +
+            '<button class="btn" style="background:' + (item.likedByMe ? '#853' : '#453') + ';font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLike(' + origIdx + ')">' + (item.likedByMe ? '❤️' : '🤍') + ' ' + (item.likes||0) + '</button>' +
+            '<button class="btn" style="background:#435;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityShare(' + origIdx + ')">📋 Kód</button>' +
+            '<button class="btn" style="background:#633;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityDelete(' + origIdx + ')">🗑</button>' +
             '</div></div>';
         container.appendChild(card);
     });
@@ -3900,7 +3948,7 @@ function communityRenderGrid() {
 function communityLoad(idx) {
     let items = communityGetAll();
     if (!items[idx]) return;
-    if (!confirm('Na\u010d\u00edst "' + items[idx].name + '" od ' + items[idx].author + '? Aktu\u00e1ln\u00ed mapa se p\u0159ep\u00ed\u0161e.')) return;
+    if (!confirm('Načíst "' + items[idx].name + '" od ' + items[idx].author + '? Aktuální mapa se přepíše.')) return;
     galleryDecompressGrid(items[idx].data);
     neutronAge.fill(0);
     wireCooldown.fill(0);
@@ -3919,6 +3967,17 @@ function communityLike(idx) {
     }
     communitySetAll(items);
     communityRenderGrid();
+}
+
+function communityShare(idx) {
+    let items = communityGetAll();
+    if (!items[idx]) return;
+    let code = 'SANDBOX1:' + items[idx].name + ':' + items[idx].data;
+    navigator.clipboard.writeText(code).then(() => {
+        alert('Kód zkopírován! Pošli ho kamarádovi.');
+    }).catch(() => {
+        prompt('Zkopíruj kód ručně:', code);
+    });
 }
 
 function communityDelete(idx) {
