@@ -3720,8 +3720,23 @@ function gallerySave() {
         alert('Nedostatek místa! Smaž staré výtvory.');
         return;
     }
-    // Auto-publish to community server
-    communityPublishToServer(name, p.name || 'Anonym', '', data, thumb, avatarToDataURL(p.avatarPixels));
+    // Auto-publish to community
+    let communityItems = communityGetAll();
+    communityItems.unshift({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        name: name,
+        author: p.name || 'Anonym',
+        desc: '',
+        date: new Date().toLocaleString(),
+        ts: Date.now(),
+        data: data,
+        thumb: thumb,
+        avatar: avatarToDataURL(p.avatarPixels),
+        likes: 0,
+        likedByMe: false
+    });
+    if (communityItems.length > 200) communityItems = communityItems.slice(0, 200);
+    try { communitySetAll(communityItems); } catch(e) {}
     if (typeof profileTrackPublish === 'function') profileTrackPublish();
     document.getElementById('galName').value = '';
     galleryRenderGrid();
@@ -3836,116 +3851,83 @@ function galleryImport() {
     }
 }
 
-// ===================== COMMUNITY (ONLINE SHARED PROJECTS) =====================
-// Auto-detect: if opened from server use relative URL, if file:// use localhost
-const API_URL = (location.protocol === 'file:' ? 'http://localhost:3456' : '') + '/api/community';
-const API_HEADERS = { 'Content-Type': 'application/json' };
-let communityCache = [];
-let communityLikedIds = new Set(JSON.parse(localStorage.getItem('sandbox_liked') || '[]'));
-
-function saveLikedIds() {
-    localStorage.setItem('sandbox_liked', JSON.stringify([...communityLikedIds]));
+// ===================== COMMUNITY (LOCAL SHARED PROJECTS) =====================
+function communityGetAll() {
+    try { return JSON.parse(localStorage.getItem('sandbox_community') || '[]'); }
+    catch(e) { return []; }
 }
-
-async function communityFetchAll() {
-    let sort = document.getElementById('pubSort') ? document.getElementById('pubSort').value : 'newest';
-    try {
-        let resp = await fetch(API_URL + '?sort=' + sort, { headers: API_HEADERS });
-        if (!resp.ok) throw new Error('Server error ' + resp.status);
-        communityCache = await resp.json();
-    } catch(e) {
-        console.warn('Community fetch failed:', e.message);
-        communityCache = [];
-    }
-    return communityCache;
+function communitySetAll(items) {
+    localStorage.setItem('sandbox_community', JSON.stringify(items));
 }
 
 function communityRenderGrid() {
     let container = document.getElementById('galCommunityGrid');
     let empty = document.getElementById('pubEmpty');
     let countEl = document.getElementById('pubCount');
-    container.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Načítám...</div>';
-
-    communityFetchAll().then(items => {
-        container.innerHTML = '';
-        empty.style.display = items.length ? 'none' : '';
-        countEl.textContent = items.length + ' výtvorů';
-        items.forEach((item) => {
-            let liked = communityLikedIds.has(item.id);
-            let card = document.createElement('div');
-            card.style.cssText = 'background:#1a1a2e;border:1px solid #444;border-radius:8px;overflow:hidden;transition:all .2s';
-            card.onmouseover = () => card.style.borderColor = '#ff8844';
-            card.onmouseout = () => card.style.borderColor = '#444';
-            card.innerHTML =
-                '<img src="' + (item.thumb || '') + '" style="width:100%;height:100px;object-fit:cover;background:#111">' +
-                '<div style="padding:8px">' +
-                '<div style="font-weight:bold;font-size:13px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
-                '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#ff8844">' +
-                (item.avatar ? '<img src="' + item.avatar + '" style="width:18px;height:18px;border-radius:50%;image-rendering:pixelated;background:#222;border:1px solid #553">' : '<span>\ud83d\udc64</span>') +
-                ' ' + escHtml(item.author) + '</div>' +
-                (item.desc ? '<div style="font-size:11px;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(item.desc) + '</div>' : '') +
-                '<div style="font-size:10px;color:#555;margin-top:2px">' + escHtml(item.date || '') + '</div>' +
-                '<div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">' +
-                '<button class="btn" style="background:#345;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLoad(\'' + item.id + '\')">\ud83d\udcc2 Načíst</button>' +
-                '<button class="btn" style="background:' + (liked ? '#853' : '#453') + ';font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLike(\'' + item.id + '\')">' + (liked ? '\u2764\ufe0f' : '\ud83e\udd0d') + ' ' + (item.likes||0) + '</button>' +
-                '<button class="btn" style="background:#633;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityDelete(\'' + item.id + '\')">\ud83d\uddd1</button>' +
-                '</div></div>';
-            container.appendChild(card);
-        });
-    }).catch(e => {
-        container.innerHTML = '<div style="text-align:center;color:#f66;padding:20px">\u274c Nelze se připojit k serveru.<br><span style="font-size:11px;color:#888">Spusť: npm run server</span></div>';
+    let items = communityGetAll();
+    let sort = document.getElementById('pubSort').value;
+    let sorted = items.slice();
+    if (sort === 'likes') sorted.sort((a, b) => (b.likes||0) - (a.likes||0));
+    else if (sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name));
+    else sorted.sort((a, b) => (b.ts||0) - (a.ts||0));
+    container.innerHTML = '';
+    empty.style.display = sorted.length ? 'none' : '';
+    countEl.textContent = sorted.length + ' v\u00fdtvor\u016f';
+    sorted.forEach((item) => {
+        let origIdx = items.indexOf(item);
+        let card = document.createElement('div');
+        card.style.cssText = 'background:#1a1a2e;border:1px solid #444;border-radius:8px;overflow:hidden;transition:all .2s';
+        card.onmouseover = () => card.style.borderColor = '#ff8844';
+        card.onmouseout = () => card.style.borderColor = '#444';
+        card.innerHTML =
+            '<img src="' + (item.thumb || '') + '" style="width:100%;height:100px;object-fit:cover;background:#111">' +
+            '<div style="padding:8px">' +
+            '<div style="font-weight:bold;font-size:13px;color:#eee;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(item.name) + '</div>' +
+            '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#ff8844">' +
+            (item.avatar ? '<img src="' + item.avatar + '" style="width:18px;height:18px;border-radius:50%;image-rendering:pixelated;background:#222;border:1px solid #553">' : '<span>\ud83d\udc64</span>') +
+            ' ' + escHtml(item.author) + '</div>' +
+            (item.desc ? '<div style="font-size:11px;color:#888;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(item.desc) + '</div>' : '') +
+            '<div style="font-size:10px;color:#555;margin-top:2px">' + escHtml(item.date || '') + '</div>' +
+            '<div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:wrap">' +
+            '<button class="btn" style="background:#345;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLoad(' + origIdx + ')">\ud83d\udcc2 Na\u010d\u00edst</button>' +
+            '<button class="btn" style="background:' + (item.likedByMe ? '#853' : '#453') + ';font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityLike(' + origIdx + ')">' + (item.likedByMe ? '\u2764\ufe0f' : '\ud83e\udd0d') + ' ' + (item.likes||0) + '</button>' +
+            '<button class="btn" style="background:#633;font-size:10px;padding:2px 8px" onclick="event.stopPropagation();communityDelete(' + origIdx + ')">\ud83d\uddd1</button>' +
+            '</div></div>';
+        container.appendChild(card);
     });
 }
 
-function communityLoad(id) {
-    let item = communityCache.find(i => i.id === id);
-    if (!item) return;
-    if (!confirm('Načíst "' + item.name + '" od ' + item.author + '? Aktuální mapa se přepíše.')) return;
-    galleryDecompressGrid(item.data);
+function communityLoad(idx) {
+    let items = communityGetAll();
+    if (!items[idx]) return;
+    if (!confirm('Na\u010d\u00edst "' + items[idx].name + '" od ' + items[idx].author + '? Aktu\u00e1ln\u00ed mapa se p\u0159ep\u00ed\u0161e.')) return;
+    galleryDecompressGrid(items[idx].data);
     neutronAge.fill(0);
     wireCooldown.fill(0);
     document.getElementById('gallery').style.display = 'none';
 }
 
-async function communityLike(id) {
-    let liked = communityLikedIds.has(id);
-    let endpoint = liked ? '/unlike' : '/like';
-    try {
-        await fetch(API_URL + '/' + id + endpoint, { method: 'POST', headers: API_HEADERS });
-        if (liked) communityLikedIds.delete(id);
-        else communityLikedIds.add(id);
-        saveLikedIds();
-        communityRenderGrid();
-    } catch(e) {
-        alert('Chyba: ' + e.message);
+function communityLike(idx) {
+    let items = communityGetAll();
+    if (!items[idx]) return;
+    if (items[idx].likedByMe) {
+        items[idx].likes = Math.max(0, (items[idx].likes||0) - 1);
+        items[idx].likedByMe = false;
+    } else {
+        items[idx].likes = (items[idx].likes||0) + 1;
+        items[idx].likedByMe = true;
     }
+    communitySetAll(items);
+    communityRenderGrid();
 }
 
-async function communityDelete(id) {
-    let item = communityCache.find(i => i.id === id);
-    if (!item) return;
-    if (!confirm('Smazat "' + item.name + '" z komunity?')) return;
-    try {
-        await fetch(API_URL + '/' + id, { method: 'DELETE', headers: API_HEADERS });
-        communityRenderGrid();
-    } catch(e) {
-        alert('Chyba: ' + e.message);
-    }
-}
-
-async function communityPublishToServer(name, author, desc, data, thumb, avatar) {
-    try {
-        let resp = await fetch(API_URL, {
-            method: 'POST',
-            headers: API_HEADERS,
-            body: JSON.stringify({ name, author, desc, data, thumb, avatar })
-        });
-        if (!resp.ok) throw new Error('Server error ' + resp.status);
-        return true;
-    } catch(e) {
-        console.warn('Publish failed:', e.message);
-        return false;
-    }
+function communityDelete(idx) {
+    let items = communityGetAll();
+    if (!items[idx]) return;
+    if (!confirm('Smazat "' + items[idx].name + '" z komunity?')) return;
+    items.splice(idx, 1);
+    communitySetAll(items);
+    communityRenderGrid();
 }
 
 // ===================== PROFILE =====================
