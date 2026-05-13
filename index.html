@@ -1470,14 +1470,41 @@ const ACID_IMMUNE = new Set([E.EMPTY,E.ACID,E.GLASS,E.WATER,E.OBSIDIAN,E.BEDROCK
 // ===================== HEAT / MELT SYSTEM =====================
 // Heat level of heat sources (higher = hotter)
 const HEAT_LVL = {};
-HEAT_LVL[E.HEATER] = 2;   // ~300°C — melts ice, snow, wax
-HEAT_LVL[E.EMBER] = 3;    // ~500°C — + lead
+HEAT_LVL[E.HEATER] = 2;   // ~300°C
+HEAT_LVL[E.EMBER] = 3;    // ~500°C
 HEAT_LVL[E.TORCH] = 3;    // ~600°C
-HEAT_LVL[E.FIRE] = 4;     // ~800°C — + rubber, honey
-HEAT_LVL[E.LAVA] = 6;     // ~1200°C — + metal, iron, copper, glass, sand→glass
-HEAT_LVL[E.THERMITE] = 7; // ~1500°C — + obsidian
-HEAT_LVL[E.DRAGON] = 8;   // ~2000°C — + stone, titanium
-HEAT_LVL[E.PLASMA] = 10;  // ~5000°C — + diamond, bedrock-near
+HEAT_LVL[E.FIRE] = 4;     // ~800°C
+HEAT_LVL[E.MOLTEN] = 5;   // ~1000°C
+HEAT_LVL[E.LIQUID_WAX] = 1; // ~80°C
+HEAT_LVL[E.LAVA] = 6;     // ~1200°C
+HEAT_LVL[E.NAPALM] = 5;   // ~1000°C
+HEAT_LVL[E.THERMITE] = 7; // ~1500°C
+HEAT_LVL[E.DRAGON] = 8;   // ~2000°C
+HEAT_LVL[E.PLASMA] = 10;  // ~5000°C
+HEAT_LVL[E.URANIUM] = 2;  // ~300°C (radioactive decay heat)
+HEAT_LVL[E.SPARK] = 3;    // ~500°C (electric arc)
+HEAT_LVL[E.LIGHT] = 1;    // ~100°C (warm glow)
+HEAT_LVL[E.STEAM] = 1;    // ~100°C
+
+// Cold levels (negative)
+const COLD_LVL = {};
+COLD_LVL[E.ICE] = -2;
+COLD_LVL[E.SNOW] = -1;
+COLD_LVL[E.FROST] = -4;
+COLD_LVL[E.COOLER] = -3;
+COLD_LVL[E.WATER] = -0.5;
+
+// Temperature in °C for display
+const TEMP_DISPLAY = {};
+TEMP_DISPLAY[E.PLASMA] = 5000; TEMP_DISPLAY[E.DRAGON] = 2000; TEMP_DISPLAY[E.THERMITE] = 1500;
+TEMP_DISPLAY[E.LAVA] = 1200; TEMP_DISPLAY[E.MOLTEN] = 1000; TEMP_DISPLAY[E.NAPALM] = 1000;
+TEMP_DISPLAY[E.FIRE] = 800; TEMP_DISPLAY[E.TORCH] = 600; TEMP_DISPLAY[E.EMBER] = 500;
+TEMP_DISPLAY[E.SPARK] = 500; TEMP_DISPLAY[E.HEATER] = 300; TEMP_DISPLAY[E.URANIUM] = 300;
+TEMP_DISPLAY[E.LIQUID_WAX] = 80; TEMP_DISPLAY[E.STEAM] = 100; TEMP_DISPLAY[E.LIGHT] = 100;
+TEMP_DISPLAY[E.WATER] = 20; TEMP_DISPLAY[E.OIL] = 20; TEMP_DISPLAY[E.SAND] = 20;
+TEMP_DISPLAY[E.STONE] = 20; TEMP_DISPLAY[E.WOOD] = 20; TEMP_DISPLAY[E.METAL] = 20;
+TEMP_DISPLAY[E.ICE] = -10; TEMP_DISPLAY[E.SNOW] = -5; TEMP_DISPLAY[E.FROST] = -30;
+TEMP_DISPLAY[E.COOLER] = -20;
 
 // Melt point of materials (what heat level is needed to melt them)
 // Returns [meltPoint, result] or null if unmeltable
@@ -4735,28 +4762,48 @@ function draw() {
         X.globalAlpha = 0.35;
         for (let hy = 0; hy < H; hy += 4) {
             for (let hx = 0; hx < W; hx += 4) {
-                // Sample heat in this 4x4 block
                 let heat = 0;
                 for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) {
                     let el = get(hx + dx, hy + dy);
-                    let hl = HEAT_LVL[el];
-                    if (hl) heat += hl;
-                    // Cold sources
-                    if (el === E.ICE || el === E.SNOW || el === E.FROST || el === E.COOLER) heat -= 3;
-                    if (el === E.WATER) heat -= 1;
+                    if (HEAT_LVL[el]) heat += HEAT_LVL[el];
+                    if (COLD_LVL[el]) heat += COLD_LVL[el];
                 }
                 if (heat === 0) continue;
                 if (heat > 0) {
-                    let r = Math.min(255, heat * 25);
-                    X.fillStyle = 'rgb(' + r + ',' + Math.floor(r * 0.3) + ',0)';
+                    let i = Math.min(1, heat / 20);
+                    let r = Math.floor(255 * i);
+                    let g = Math.floor(100 * i);
+                    X.fillStyle = 'rgb(' + r + ',' + g + ',0)';
                 } else {
-                    let b = Math.min(255, -heat * 20);
-                    X.fillStyle = 'rgb(0,' + Math.floor(b * 0.4) + ',' + b + ')';
+                    let i = Math.min(1, -heat / 15);
+                    let b = Math.floor(255 * i);
+                    X.fillStyle = 'rgb(0,' + Math.floor(b * 0.5) + ',' + b + ')';
                 }
                 X.fillRect(hx * SCALE, hy * SCALE, 4 * SCALE, 4 * SCALE);
             }
         }
         X.globalAlpha = 1;
+        // Temperature display under cursor
+        if (lastMX >= 0 && lastMX < W && lastMY >= 0 && lastMY < H) {
+            let el = get(lastMX, lastMY);
+            let temp = TEMP_DISPLAY[el];
+            if (temp === undefined) temp = 20;
+            // Check neighbors for heat influence
+            for (let ddx = -2; ddx <= 2; ddx++) for (let ddy = -2; ddy <= 2; ddy++) {
+                let nb = get(lastMX + ddx, lastMY + ddy);
+                if (TEMP_DISPLAY[nb] !== undefined && TEMP_DISPLAY[nb] > temp) {
+                    temp = Math.floor(temp + (TEMP_DISPLAY[nb] - temp) * 0.15);
+                }
+            }
+            let label = temp + '\u00b0C';
+            let col = temp > 100 ? '#ff4400' : temp < 0 ? '#44aaff' : '#ffffff';
+            X.fillStyle = 'rgba(0,0,0,0.6)';
+            X.fillRect(lastMX * SCALE + 12, lastMY * SCALE - 10, 50, 16, 3);
+            X.fillStyle = col;
+            X.font = 'bold 11px monospace';
+            X.textAlign = 'left';
+            X.fillText(label, lastMX * SCALE + 15, lastMY * SCALE + 2);
+        }
     }
     // Brush preview
     if (lastMX >= 0) {
