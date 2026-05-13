@@ -197,6 +197,10 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0}
             <span data-i18n="gridLabel">Mřížka</span>
             <label style="cursor:pointer"><input type="checkbox" id="setGrid" style="margin-right:6px">Zapnuto</label>
         </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin:6px 0">
+            <span data-i18n="heatmapLabel">Teplotní mapa</span>
+            <label style="cursor:pointer"><input type="checkbox" id="setHeatmap" style="margin-right:6px">Zapnuto</label>
+        </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
             <span>Smazat všechny uložené hry</span>
@@ -4726,6 +4730,34 @@ function draw() {
             X.beginPath(); X.moveTo(0, gy * SCALE); X.lineTo(W * SCALE, gy * SCALE); X.stroke();
         }
     }
+    // Heat map overlay
+    if (showHeatmap) {
+        X.globalAlpha = 0.35;
+        for (let hy = 0; hy < H; hy += 4) {
+            for (let hx = 0; hx < W; hx += 4) {
+                // Sample heat in this 4x4 block
+                let heat = 0;
+                for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) {
+                    let el = get(hx + dx, hy + dy);
+                    let hl = HEAT_LVL[el];
+                    if (hl) heat += hl;
+                    // Cold sources
+                    if (el === E.ICE || el === E.SNOW || el === E.FROST || el === E.COOLER) heat -= 3;
+                    if (el === E.WATER) heat -= 1;
+                }
+                if (heat === 0) continue;
+                if (heat > 0) {
+                    let r = Math.min(255, heat * 25);
+                    X.fillStyle = 'rgb(' + r + ',' + Math.floor(r * 0.3) + ',0)';
+                } else {
+                    let b = Math.min(255, -heat * 20);
+                    X.fillStyle = 'rgb(0,' + Math.floor(b * 0.4) + ',' + b + ')';
+                }
+                X.fillRect(hx * SCALE, hy * SCALE, 4 * SCALE, 4 * SCALE);
+            }
+        }
+        X.globalAlpha = 1;
+    }
     // Brush preview
     if (lastMX >= 0) {
         X.strokeStyle = 'rgba(255,255,255,0.4)';
@@ -5213,6 +5245,7 @@ function showSettings() {
     document.getElementById('setDecay').checked = s.decay !== false;
     document.getElementById('setAsh').checked = s.ash !== false;
     document.getElementById('setGrid').checked = s.grid === true;
+    document.getElementById('setHeatmap').checked = s.heatmap === true;
 }
 document.getElementById('setDefaultBrush').addEventListener('input', function() {
     document.getElementById('setDBval').textContent = this.value;
@@ -5223,6 +5256,7 @@ document.getElementById('setVolume').addEventListener('input', function() {
 
 let showFps = true;
 let showGrid = false;
+let showHeatmap = false;
 let bgColorR = 26, bgColorG = 26, bgColorB = 46;
 
 // Feature toggles
@@ -5243,6 +5277,7 @@ let feat = { gravity: true, fire: true, electricity: true, nuclear: true, life: 
     if (s.decay !== undefined) feat.decay = s.decay;
     if (s.ash !== undefined) feat.ash = s.ash;
     if (s.grid !== undefined) showGrid = s.grid;
+    if (s.heatmap !== undefined) showHeatmap = s.heatmap;
     if (s.soundEnabled !== undefined) sfxEnabled = s.soundEnabled;
     if (s.volume !== undefined) sfxVolume = s.volume / 100;
 })();
@@ -5293,12 +5328,14 @@ function applySettings() {
     feat.decay = document.getElementById('setDecay').checked;
     feat.ash = document.getElementById('setAsh').checked;
     showGrid = document.getElementById('setGrid').checked;
+    showHeatmap = document.getElementById('setHeatmap').checked;
 
     localStorage.setItem('sandbox_settings', JSON.stringify({ worldSize, scale, speed, brush, showFps, bgColor,
         soundEnabled: sfxEnabled, volume: Math.round(sfxVolume * 100),
         gravity: feat.gravity, fire: feat.fire, electricity: feat.electricity, nuclear: feat.nuclear,
         life: feat.life, explosions: feat.explosions, liquids: feat.liquids, weather: feat.weather,
-        gases: feat.gases, bioThreats: feat.bioThreats, decay: feat.decay, ash: feat.ash, grid: showGrid }));
+        gases: feat.gases, bioThreats: feat.bioThreats, decay: feat.decay, ash: feat.ash,
+        grid: showGrid, heatmap: showHeatmap }));
 
     document.getElementById('settings').style.display = 'none';
 
