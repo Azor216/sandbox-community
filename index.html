@@ -418,13 +418,20 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
     <button class="btn" style="background:#546" onclick="showGallery()">🌍 Galerie</button>
 </div>
 <div id="controls2" style="display:flex;align-items:center;gap:4px;padding:2px 4px;flex-wrap:wrap">
-    <button class="btn" style="background:#456;font-size:10px" onclick="toolRain()">🌧️ Dešť [R]</button>
-    <button class="btn" style="background:#654;font-size:10px" onclick="toolMeteor()">☄️ Meteor [M]</button>
-    <button class="btn" style="background:#645;font-size:10px" onclick="toolFlood()">🌊 Záplava [F]</button>
-    <button class="btn" style="background:#544;font-size:10px" onclick="toolNuke()">☢️ Nuke [N]</button>
+    <button class="btn" style="background:#533;font-size:10px" id="eraseBtn" onclick="toggleErase()">🧹 Erase</button>
     <button class="btn" style="background:#454;font-size:10px" id="sprayBtn" onclick="toggleSpray()">💨 Spray</button>
-    <button class="btn" style="background:#446;font-size:10px" onclick="undo()" title="Ctrl+Z">↩ Undo</button>
-    <button class="btn" style="background:#446;font-size:10px" onclick="redo()" title="Ctrl+Y">↪ Redo</button>
+    <button class="btn" style="background:#446;font-size:10px" onclick="undo()">↩</button>
+    <button class="btn" style="background:#446;font-size:10px" onclick="redo()">↪</button>
+    <span style="color:#444">|</span>
+    <button class="btn" style="background:#456;font-size:10px" onclick="toolRain()">🌧️</button>
+    <button class="btn" style="background:#654;font-size:10px" onclick="toolMeteor()">☄️</button>
+    <button class="btn" style="background:#645;font-size:10px" onclick="toolFlood()">🌊</button>
+    <button class="btn" style="background:#544;font-size:10px" onclick="toolNuke()">☢️</button>
+    <span style="color:#444">|</span>
+    <button class="btn" style="background:#556;font-size:10px" onclick="if(lastMX>=0)lightning(lastMX)">⚡</button>
+    <button class="btn" style="background:#565;font-size:10px" onclick="if(lastMX>=0)tornado(lastMX,lastMY)">🌪️</button>
+    <button class="btn" style="background:#655;font-size:10px" onclick="earthquake()">🌍</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="if(lastMX>=0)gravityFlip(lastMX,lastMY,15)">🔄</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <canvas id="c"></canvas>
@@ -4930,6 +4937,13 @@ document.addEventListener('keydown', e => {
 });
 
 let sprayMode = false;
+let eraseMode = false;
+
+function toggleErase() {
+    eraseMode = !eraseMode;
+    document.getElementById('eraseBtn').style.borderColor = eraseMode ? '#ff4444' : '#444';
+    document.getElementById('eraseBtn').style.boxShadow = eraseMode ? '0 0 8px rgba(255,68,68,0.5)' : 'none';
+}
 
 function toggleSpray() {
     sprayMode = !sprayMode;
@@ -4940,7 +4954,7 @@ function toggleSpray() {
 function paint() {
     if (!painting && !erasing) return;
     if (lastMX < 0) return;
-    let type = (erasing || curElem === E.ERASER) ? E.EMPTY : curElem;
+    let type = (erasing || eraseMode || curElem === E.ERASER) ? E.EMPTY : curElem;
     let pxCount = 0;
     if (sprayMode && !erasing) {
         // Spray: random scatter in brush radius
