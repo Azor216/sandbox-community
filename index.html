@@ -1672,9 +1672,15 @@ function propagateHeat() {
                 heatGrid[ni] += transfer;
             }
         }
-        // Decay
-        if (myHeat > 0 && !HEAT_LVL[el]) heatGrid[i] = Math.max(0, myHeat - 1);
-        if (myHeat < 0 && !COLD_LVL[el]) heatGrid[i] = Math.min(0, myHeat + 1);
+        // Decay — cool faster when hotter, proportional loss
+        if (myHeat > 0 && !HEAT_LVL[el]) {
+            let loss = Math.max(2, Math.floor(myHeat * 0.08));
+            heatGrid[i] = Math.max(0, myHeat - loss);
+        }
+        if (myHeat < 0 && !COLD_LVL[el]) {
+            let gain = Math.max(2, Math.floor(-myHeat * 0.08));
+            heatGrid[i] = Math.min(0, myHeat + gain);
+        }
         // Melt from conducted heat
         if (myHeat > 100 && !HEAT_LVL[el]) {
             let mi = getMeltInfo(el);
