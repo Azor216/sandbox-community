@@ -1573,60 +1573,6 @@ TEMP_DISPLAY[E.STONE] = 20; TEMP_DISPLAY[E.WOOD] = 20; TEMP_DISPLAY[E.METAL] = 2
 TEMP_DISPLAY[E.ICE] = -10; TEMP_DISPLAY[E.SNOW] = -5; TEMP_DISPLAY[E.FROST] = -30;
 TEMP_DISPLAY[E.COOLER] = -20;
 
-function propagateHeat() {
-    // Emit heat from sources
-    for (let i = 0; i < W * H; i++) {
-        let el = grid[i];
-        if (HEAT_LVL[el]) {
-            let target = HEAT_LVL[el] * 100;
-            if (heatGrid[i] < target) heatGrid[i] = Math.min(target, heatGrid[i] + target * 0.3);
-        }
-        if (COLD_LVL[el]) {
-            let target = Math.floor(COLD_LVL[el] * 100);
-            if (heatGrid[i] > target) heatGrid[i] = Math.max(target, Math.floor(heatGrid[i] + target * 0.3));
-        }
-    }
-    // Diffuse heat to neighbors (simplified — sample every 2nd pixel for speed)
-    for (let y = 1; y < H - 1; y++) for (let x = (y & 1); x < W - 1; x += 2) {
-        let i = y * W + x;
-        let el = grid[i];
-        let cond = CONDUCTIVITY[el];
-        if (cond === undefined) cond = (el === E.EMPTY) ? 0 : 1;
-        if (cond === 0) continue; // insulator
-        let myHeat = heatGrid[i];
-        if (myHeat === 0) continue;
-        let rate = cond * 0.02;
-        // Share heat with 4 neighbors
-        let dirs = [i - 1, i + 1, i - W, i + W];
-        for (let ni of dirs) {
-            if (ni < 0 || ni >= W * H) continue;
-            let nEl = grid[ni];
-            let nCond = CONDUCTIVITY[nEl];
-            if (nCond === undefined) nCond = (nEl === E.EMPTY) ? 0 : 1;
-            if (nCond === 0) continue;
-            let diff = myHeat - heatGrid[ni];
-            if (diff > 5) {
-                let transfer = Math.floor(diff * rate * Math.min(cond, nCond) * 0.1);
-                if (transfer > 0) {
-                    heatGrid[i] -= transfer;
-                    heatGrid[ni] += transfer;
-                }
-            }
-        }
-        // Decay heat (radiation loss)
-        if (myHeat > 0 && !HEAT_LVL[el]) heatGrid[i] = Math.max(0, myHeat - 1);
-        if (myHeat < 0 && !COLD_LVL[el]) heatGrid[i] = Math.min(0, myHeat + 1);
-        // Apply melt from conducted heat
-        if (myHeat > 100 && !HEAT_LVL[el]) {
-            let mi = getMeltInfo(el);
-            if (mi && myHeat >= mi[0] * 100 && Math.random() < 0.02) {
-                grid[i] = mi[1];
-                heatGrid[i] = Math.floor(heatGrid[i] * 0.5);
-            }
-        }
-    }
-}
-
 // ===================== HEAT PROPAGATION =====================
 const CONDUCTIVITY = {};
 CONDUCTIVITY[E.METAL] = 8; CONDUCTIVITY[E.IRON] = 7; CONDUCTIVITY[E.COPPER] = 9;
