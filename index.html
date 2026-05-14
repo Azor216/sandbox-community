@@ -423,15 +423,15 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
     <button class="btn" style="background:#446;font-size:10px" onclick="undo()">↩</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="redo()">↪</button>
     <span style="color:#444">|</span>
-    <button class="btn" style="background:#456;font-size:10px" onclick="toolRain()">🌧️</button>
-    <button class="btn" style="background:#654;font-size:10px" onclick="toolMeteor()">☄️</button>
-    <button class="btn" style="background:#645;font-size:10px" onclick="toolFlood()">🌊</button>
-    <button class="btn" style="background:#544;font-size:10px" onclick="toolNuke()">☢️</button>
+    <button class="btn" style="background:#456;font-size:10px" id="tRain" onclick="toggleTool('rain')">🌧️</button>
+    <button class="btn" style="background:#654;font-size:10px" id="tMeteor" onclick="toggleTool('meteor')">☄️</button>
+    <button class="btn" style="background:#645;font-size:10px" id="tFlood" onclick="toggleTool('flood')">🌊</button>
+    <button class="btn" style="background:#544;font-size:10px" id="tNuke" onclick="toggleTool('nuke')">☢️</button>
     <span style="color:#444">|</span>
-    <button class="btn" style="background:#556;font-size:10px" onclick="lightning(lastMX>=0?lastMX:Math.floor(W/2))">⚡</button>
-    <button class="btn" style="background:#565;font-size:10px" onclick="tornado(lastMX>=0?lastMX:Math.floor(W/2),lastMY>=0?lastMY:Math.floor(H/2))">🌪️</button>
-    <button class="btn" style="background:#655;font-size:10px" onclick="earthquake()">🌍</button>
-    <button class="btn" style="background:#556;font-size:10px" onclick="gravityFlip(lastMX>=0?lastMX:Math.floor(W/2),lastMY>=0?lastMY:Math.floor(H/2),15)">🔄</button>
+    <button class="btn" style="background:#556;font-size:10px" id="tLightning" onclick="toggleTool('lightning')">⚡</button>
+    <button class="btn" style="background:#565;font-size:10px" id="tTornado" onclick="toggleTool('tornado')">🌪️</button>
+    <button class="btn" style="background:#655;font-size:10px" id="tQuake" onclick="toggleTool('quake')">🌍</button>
+    <button class="btn" style="background:#556;font-size:10px" id="tGravity" onclick="toggleTool('gravity')">🔄</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <canvas id="c"></canvas>
@@ -4951,6 +4951,45 @@ function toggleSpray() {
     document.getElementById('sprayBtn').style.boxShadow = sprayMode ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
 }
 
+// ===================== TOOL TOGGLES =====================
+let activeTools = {};
+const TOOL_IDS = {rain:'tRain',meteor:'tMeteor',flood:'tFlood',nuke:'tNuke',lightning:'tLightning',tornado:'tTornado',quake:'tQuake',gravity:'tGravity'};
+const TOOL_INTERVALS = {rain:10,meteor:60,flood:90,nuke:120,lightning:8,tornado:5,quake:30,gravity:20};
+
+function toggleTool(name) {
+    activeTools[name] = !activeTools[name];
+    let btn = document.getElementById(TOOL_IDS[name]);
+    if (btn) {
+        btn.style.borderColor = activeTools[name] ? '#ff8844' : '#444';
+        btn.style.boxShadow = activeTools[name] ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
+    }
+    // If just turned on, fire once immediately
+    if (activeTools[name]) fireTool(name);
+}
+
+function fireTool(name) {
+    let cx = lastMX >= 0 ? lastMX : Math.floor(W / 2);
+    let cy = lastMY >= 0 ? lastMY : Math.floor(H / 2);
+    switch(name) {
+        case 'rain': toolRain(); break;
+        case 'meteor': toolMeteor(); break;
+        case 'flood': toolFlood(); break;
+        case 'nuke': toolNuke(); break;
+        case 'lightning': lightning(cx); break;
+        case 'tornado': tornado(cx, cy); break;
+        case 'quake': earthquake(); break;
+        case 'gravity': gravityFlip(cx, cy, 15); break;
+    }
+}
+
+function updateTools() {
+    for (let name in activeTools) {
+        if (!activeTools[name]) continue;
+        let interval = TOOL_INTERVALS[name] || 30;
+        if (frameN % interval === 0) fireTool(name);
+    }
+}
+
 function paint() {
     if (!painting && !erasing) return;
     if (lastMX < 0) return;
@@ -5159,6 +5198,7 @@ function loop(time) {
         lastTime = time;
         paint();
         if (!paused) {
+            updateTools();
             if (simSpeed >= 5) {
                 // Normal or fast: 1 to 10 steps per frame
                 let steps = simSpeed - 4;
