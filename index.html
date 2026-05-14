@@ -420,6 +420,9 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
 <div id="controls2" style="display:flex;align-items:center;gap:4px;padding:2px 4px;flex-wrap:wrap">
     <button class="btn" style="background:#533;font-size:10px" id="eraseBtn" onclick="toggleErase()">🧹 Erase</button>
     <button class="btn" style="background:#454;font-size:10px" id="sprayBtn" onclick="toggleSpray()">💨 Spray</button>
+    <button class="btn" style="background:#445;font-size:10px" id="drawLine" onclick="setDrawMode('line')">╱ Line</button>
+    <button class="btn" style="background:#445;font-size:10px" id="drawRect" onclick="setDrawMode('rect')">□ Rect</button>
+    <button class="btn" style="background:#445;font-size:10px" id="drawCircle" onclick="setDrawMode('circle')">○ Circle</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="undo()">↩</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="redo()">↪</button>
     <span style="color:#444">|</span>
@@ -432,8 +435,11 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
     <button class="btn" style="background:#565;font-size:10px" id="tTornado" onclick="toggleTool('tornado')">🌪️</button>
     <button class="btn" style="background:#655;font-size:10px" id="tQuake" onclick="toggleTool('quake')">🌍</button>
     <button class="btn" style="background:#556;font-size:10px" id="tGravity" onclick="toggleTool('gravity')">🔄</button>
+    <span style="color:#444">|</span>
+    <button class="btn" style="background:#353;font-size:10px" onclick="showChallenges()">🎯</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
+<div id="tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#eee;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;border:1px solid #555;max-width:200px"></div>
 <canvas id="c"></canvas>
 <div id="info" data-i18n="infoBar">LMB = kreslit | RMB = mazat | Scroll = brush | P = pauza | C = clear | L = blesk | T = tornado | Q = earthquake | G = gravity | R = déšť | M = meteor | F = záplava | N = nuke</div>
 </div><!-- /game -->
@@ -4863,13 +4869,30 @@ function draw() {
             X.fillText(label, lastMX * SCALE + 15, lastMY * SCALE + 2);
         }
     }
-    // Brush preview
+    // Brush / shape preview
     if (lastMX >= 0) {
         X.strokeStyle = 'rgba(255,255,255,0.4)';
         X.lineWidth = 1;
-        X.beginPath();
-        X.arc(lastMX * SCALE, lastMY * SCALE, brushR * SCALE, 0, 6.28);
-        X.stroke();
+        if (drawMode !== 'brush' && painting && shapeStartX >= 0) {
+            X.setLineDash([4, 4]);
+            X.beginPath();
+            if (drawMode === 'line') {
+                X.moveTo(shapeStartX * SCALE, shapeStartY * SCALE);
+                X.lineTo(lastMX * SCALE, lastMY * SCALE);
+            } else if (drawMode === 'rect') {
+                X.rect(Math.min(shapeStartX, lastMX) * SCALE, Math.min(shapeStartY, lastMY) * SCALE,
+                    Math.abs(lastMX - shapeStartX) * SCALE, Math.abs(lastMY - shapeStartY) * SCALE);
+            } else if (drawMode === 'circle') {
+                let r = Math.max(Math.abs(lastMX - shapeStartX), Math.abs(lastMY - shapeStartY)) * SCALE;
+                X.arc(shapeStartX * SCALE, shapeStartY * SCALE, r, 0, 6.28);
+            }
+            X.stroke();
+            X.setLineDash([]);
+        } else {
+            X.beginPath();
+            X.arc(lastMX * SCALE, lastMY * SCALE, brushR * SCALE, 0, 6.28);
+            X.stroke();
+        }
     }
 }
 
@@ -4884,13 +4907,18 @@ let paused = false;
 C.addEventListener('mousedown', e => {
     e.preventDefault();
     initAudio();
-    if (e.button === 0) { undoSnapshot(); painting = true; sfxPlay('place'); }
+    let rect = C.getBoundingClientRect();
+    let gx = Math.floor((e.clientX - rect.left) / SCALE);
+    let gy = Math.floor((e.clientY - rect.top) / SCALE);
+    if (e.button === 0) {
+        undoSnapshot();
+        if (drawMode !== 'brush') {
+            shapeStartX = gx; shapeStartY = gy;
+        }
+        painting = true; sfxPlay('place');
+    }
     if (e.button === 2) { undoSnapshot(); erasing = true; }
-    // Middle click = eyedropper — pick element under cursor
     if (e.button === 1) {
-        let rect = C.getBoundingClientRect();
-        let gx = Math.floor((e.clientX - rect.left) / SCALE);
-        let gy = Math.floor((e.clientY - rect.top) / SCALE);
         if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
             let picked = get(gx, gy);
             if (picked !== E.EMPTY) selectElem(picked);
@@ -4898,7 +4926,17 @@ C.addEventListener('mousedown', e => {
     }
 });
 C.addEventListener('mouseup', e => {
-    if (e.button === 0) painting = false;
+    if (e.button === 0) {
+        // Shape tool: draw shape on release
+        if (drawMode !== 'brush' && shapeStartX >= 0 && lastMX >= 0) {
+            let type = (eraseMode || curElem === E.ERASER) ? E.EMPTY : curElem;
+            if (drawMode === 'line') drawLine(shapeStartX, shapeStartY, lastMX, lastMY, type);
+            else if (drawMode === 'rect') drawRect(shapeStartX, shapeStartY, lastMX, lastMY, type);
+            else if (drawMode === 'circle') drawCircle(shapeStartX, shapeStartY, lastMX, lastMY, type);
+            shapeStartX = -1; shapeStartY = -1;
+        }
+        painting = false;
+    }
     if (e.button === 2) erasing = false;
 });
 C.addEventListener('mouseleave', () => { painting = false; erasing = false; lastMX = -1; });
@@ -4907,6 +4945,8 @@ C.addEventListener('mousemove', e => {
     let rect = C.getBoundingClientRect();
     lastMX = Math.floor((e.clientX - rect.left) / SCALE);
     lastMY = Math.floor((e.clientY - rect.top) / SCALE);
+    if (!painting && !erasing) updateTooltip();
+    else { let tip = document.getElementById('tooltip'); if (tip) tip.style.display = 'none'; }
 });
 
 // ===================== TOUCH SUPPORT =====================
@@ -4983,6 +5023,160 @@ function toggleSpray() {
     document.getElementById('sprayBtn').style.boxShadow = sprayMode ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
 }
 
+// ===================== DRAW MODES (Line/Rect/Circle) =====================
+let drawMode = 'brush'; // 'brush', 'line', 'rect', 'circle'
+let shapeStartX = -1, shapeStartY = -1;
+
+function setDrawMode(mode) {
+    drawMode = drawMode === mode ? 'brush' : mode;
+    ['drawLine','drawRect','drawCircle'].forEach(id => {
+        let btn = document.getElementById(id);
+        if (btn) {
+            let active = (id === 'draw' + mode.charAt(0).toUpperCase() + mode.slice(1)) && drawMode === mode;
+            btn.style.borderColor = active ? '#ff8844' : '#444';
+            btn.style.boxShadow = active ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
+        }
+    });
+}
+
+function drawLine(x0, y0, x1, y1, type) {
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+        set(x0, y0, type);
+        if (x0 === x1 && y0 === y1) break;
+        let e2 = 2 * err;
+        if (e2 > -dy) { err -= dy; x0 += sx; }
+        if (e2 < dx) { err += dx; y0 += sy; }
+    }
+}
+
+function drawRect(x0, y0, x1, y1, type) {
+    let lx = Math.min(x0, x1), rx = Math.max(x0, x1);
+    let ly = Math.min(y0, y1), ry = Math.max(y0, y1);
+    for (let x = lx; x <= rx; x++) { set(x, ly, type); set(x, ry, type); }
+    for (let y = ly; y <= ry; y++) { set(lx, y, type); set(rx, y, type); }
+}
+
+function drawCircle(cx, cy, rx, ry, type) {
+    let r = Math.max(Math.abs(rx - cx), Math.abs(ry - cy));
+    for (let a = 0; a < 360; a += 1) {
+        let rad = a * Math.PI / 180;
+        let x = cx + Math.round(Math.cos(rad) * r);
+        let y = cy + Math.round(Math.sin(rad) * r);
+        set(x, y, type);
+    }
+}
+
+// ===================== ELEMENT INFO TOOLTIP =====================
+const ELEM_INFO = {};
+ELEM_INFO[E.SAND] = 'Padá dolů, s vodou → bláto';
+ELEM_INFO[E.WATER] = 'Tekutina, hasí oheň, eroduje kámen';
+ELEM_INFO[E.STONE] = 'Pevný blok, pomalu eroduje vodou';
+ELEM_INFO[E.WOOD] = 'Hořlavý blok, ve vodě hnije';
+ELEM_INFO[E.FIRE] = 'Hoří, šíří se, potřebuje kyslík';
+ELEM_INFO[E.LAVA] = 'Horká tekutina, taví kovy, voda→obsidián';
+ELEM_INFO[E.ICE] = 'Taje u ohně, praská pod vahou';
+ELEM_INFO[E.ACID] = 'Rozpouští většinu materiálů';
+ELEM_INFO[E.URANIUM] = 'Radioaktivní, vaří vodu → pára → turbína';
+ELEM_INFO[E.CLONE] = 'Kopíruje element nad sebou';
+ELEM_INFO[E.VOID] = 'Ničí vše co se dotkne';
+ELEM_INFO[E.BLACK_HOLE] = 'Pohlcuje vše v okolí, roste';
+ELEM_INFO[E.PLASMA] = 'Ultra-horké, taví vše včetně diamantu';
+ELEM_INFO[E.MIMIC] = 'Napodobuje sousední element';
+ELEM_INFO[E.HONEY] = 'Lepkavá tekutina, chytá tvory';
+ELEM_INFO[E.FUNGUS] = 'Roste ve tmě na organice';
+ELEM_INFO[E.GRATE] = 'Propouští tekutiny a plyny, drží pevné';
+ELEM_INFO[E.ROTTEN_WOOD] = 'Rozpadá se, šíří hnilobu';
+ELEM_INFO[E.ANTIMATTER] = 'Anihilace s hmotou → fotony';
+ELEM_INFO[E.FAUCET] = 'Nekonečný zdroj vody';
+ELEM_INFO[E.TORCH] = 'Věčný oheň, nikdy neshoří';
+ELEM_INFO[E.REPULSOR] = 'Odpuzuje vše v okolí';
+ELEM_INFO[E.CONCRETE] = 'Tvrdne s vodou → tvrdý beton';
+ELEM_INFO[E.CHARCOAL] = 'Filtruje toxický plyn, dlouho hoří';
+ELEM_INFO[E.PLANT] = 'Roste ve vodě, potřebuje světlo';
+ELEM_INFO[E.MAGNET] = 'Přitahuje kovy';
+ELEM_INFO[E.BATTERY] = 'Generuje spark, vybuchuje ve vodě';
+ELEM_INFO[E.BOMB] = 'Padá, exploduje při dopadu';
+ELEM_INFO[E.NEUTRON] = 'Štěpí uran → řetězová reakce';
+ELEM_INFO[E.FROST] = 'Zamrzá tekutiny, sůl brání zmrznutí';
+ELEM_INFO[E.SLIME] = 'Lepkavý, chytá tvory, absorbuje vodu';
+ELEM_INFO[E.TAR] = 'Těžká lepkavá tekutina, chytá tvory';
+ELEM_INFO[E.SMOKE_BOMB] = 'Exploze → masivní kouřový oblak';
+ELEM_INFO[E.HEATER] = 'Ohřívá okolí, taví led/sníh/vosk';
+ELEM_INFO[E.COOLER] = 'Chladí okolí, mrazí vodu/lávu';
+
+function updateTooltip() {
+    let tip = document.getElementById('tooltip');
+    if (!tip || lastMX < 0 || lastMX >= W || lastMY < 0 || lastMY >= H) {
+        if (tip) tip.style.display = 'none';
+        return;
+    }
+    let el = get(lastMX, lastMY);
+    if (el === E.EMPTY) { tip.style.display = 'none'; return; }
+    let name = '';
+    for (let e of ELEMS) {
+        if (!e.group && e.id === el) { name = tElem(e.name); break; }
+    }
+    let info = ELEM_INFO[el] || '';
+    tip.innerHTML = '<b style="color:#ff8844">' + escHtml(name) + '</b>' + (info ? '<br><span style="color:#aaa">' + escHtml(info) + '</span>' : '');
+    tip.style.display = '';
+    let cx = lastMX * SCALE + 20, cy = lastMY * SCALE - 10;
+    if (cx + 200 > W * SCALE) cx = lastMX * SCALE - 210;
+    tip.style.left = (C.offsetLeft + cx) + 'px';
+    tip.style.top = (C.offsetTop + cy) + 'px';
+}
+
+// ===================== CHALLENGES =====================
+const CHALLENGES = [
+    { id: 'bridge', icon: '🌉', name: 'Most', desc: 'Postav most přes propast z kamene nebo dřeva', hint: 'Použij Stone/Wood přes mezeru' },
+    { id: 'reactor', icon: '⚛️', name: 'Reaktor', desc: 'Postav funkční jadernou elektrárnu (uran + voda + turbína + drát + lampa)', hint: 'Faucet → Water → Uranium → Steam → Turbine → Wire → Lamp' },
+    { id: 'volcano', icon: '🌋', name: 'Sopka', desc: 'Vytvoř sopku která chrlí lávu', hint: 'Stone hora + Faucet nahoře s Lava' },
+    { id: 'ecosystem', icon: '🌿', name: 'Ekosystém', desc: 'Vytvoř jezero s rybami, řasami a rostlinami', hint: 'Water + Fish + Algae + Plant + Seed' },
+    { id: 'fortress', icon: '🏰', name: 'Pevnost', desc: 'Postav pevnost která přežije meteor', hint: 'Obsidian/Bedrock stěny, vnitřek chraň' },
+    { id: 'fireworks', icon: '🎆', name: 'Ohňostroj', desc: 'Odpáli 5 raket naráz', hint: 'Rocket + Fuse řada + Fire' },
+    { id: 'waterfall', icon: '🏞️', name: 'Vodopád', desc: 'Vytvoř vodopád padající do jezera', hint: 'Faucet nahoře, Stone útesy, Water dole' },
+    { id: 'circuit', icon: '💡', name: 'Obvod', desc: 'Rozsvíť 3 lampy jednou baterií', hint: 'Battery → Wire → rozvětvení → 3× Lamp' },
+    { id: 'chain', icon: '💥', name: 'Řetězová reakce', desc: 'Vytvoř exploze co zničí 1000+ pixelů', hint: 'Řada Gunpowder/C4/Nitro + Fire' },
+    { id: 'garden', icon: '🌳', name: 'Zahrada', desc: 'Vyrost 10+ stromů', hint: 'Seed + Water na písku, opakuj' },
+    { id: 'aquarium', icon: '🐠', name: 'Akvárium', desc: 'Skleněná nádoba s 5+ rybami', hint: 'Glass stěny + Water + Fish' },
+    { id: 'nuke_survive', icon: '☢️', name: 'Přežij nuke', desc: 'Postav úkryt pro člověka co přežije Nuke', hint: 'Bedrock/Lead kryt + Human uvnitř' },
+];
+
+function showChallenges() {
+    let overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;overflow-y:auto;padding:30px';
+    let html = '<div style="max-width:600px;margin:0 auto;color:#ccc">' +
+        '<h2 style="color:#ff8844;text-align:center;margin-bottom:16px">🎯 Výzvy</h2>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px">';
+    CHALLENGES.forEach(c => {
+        let done = (localStorage.getItem('challenge_' + c.id) === '1');
+        html += '<div style="background:#1a1a2e;border:1px solid ' + (done ? '#44aa44' : '#444') + ';border-radius:8px;padding:10px">' +
+            '<div style="font-size:24px;text-align:center">' + c.icon + '</div>' +
+            '<div style="font-weight:bold;color:' + (done ? '#44aa44' : '#eee') + ';text-align:center">' + (done ? '✅ ' : '') + escHtml(c.name) + '</div>' +
+            '<div style="font-size:11px;color:#888;margin-top:4px">' + escHtml(c.desc) + '</div>' +
+            '<div style="font-size:10px;color:#ff8844;margin-top:4px">💡 ' + escHtml(c.hint) + '</div>' +
+            (done ? '' : '<button class="btn" style="background:#354;font-size:10px;margin-top:6px;width:100%" data-challenge="' + c.id + '">✓ Splněno!</button>') +
+            '</div>';
+    });
+    html += '</div><br><div style="text-align:center"><button class="mbtn" style="display:inline-block;width:auto;padding:10px 30px" data-close="1">✕ Zavřít</button></div></div>';
+    overlay.innerHTML = html;
+    overlay.addEventListener('click', e => {
+        if (e.target.dataset.close) overlay.remove();
+        if (e.target.dataset.challenge) { completeChallenge(e.target.dataset.challenge); overlay.remove(); showChallenges(); }
+    });
+    document.body.appendChild(overlay);
+}
+
+function completeChallenge(id) {
+    localStorage.setItem('challenge_' + id, '1');
+    profileAddXP(100);
+    showChallenges();
+    // Remove old overlay
+    document.querySelectorAll('[style*="z-index:2000"]').forEach((el, i) => { if (i > 0) el.remove(); });
+}
+
 // ===================== TOOL TOGGLES =====================
 let activeTools = {};
 const TOOL_IDS = {rain:'tRain',meteor:'tMeteor',flood:'tFlood',nuke:'tNuke',lightning:'tLightning',tornado:'tTornado',quake:'tQuake',gravity:'tGravity'};
@@ -5025,6 +5219,8 @@ function updateTools() {
 function paint() {
     if (!painting && !erasing) return;
     if (lastMX < 0) return;
+    // Shape mode: don't paint while dragging, wait for mouseup
+    if (drawMode !== 'brush' && painting && !erasing) return;
     let type = (erasing || eraseMode || curElem === E.ERASER) ? E.EMPTY : curElem;
     let pxCount = 0;
     if (sprayMode && !erasing) {
