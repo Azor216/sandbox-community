@@ -1588,51 +1588,58 @@ function propagateHeat() {
         let el = grid[i];
         if (HEAT_LVL[el]) {
             let target = HEAT_LVL[el] * 100;
-            if (heatGrid[i] < target) heatGrid[i] = Math.min(target, heatGrid[i] + Math.floor(target * 0.3));
+            heatGrid[i] = Math.max(heatGrid[i], target);
         }
         if (COLD_LVL[el]) {
             let target = Math.floor(COLD_LVL[el] * 100);
-            if (heatGrid[i] > target) heatGrid[i] = Math.max(target, Math.floor(heatGrid[i] + target * 0.3));
+            heatGrid[i] = Math.min(heatGrid[i], target);
         }
     }
-    // Diffuse heat (sample every 2nd pixel, alternating, for speed)
+    // Diffuse heat — stronger, simpler
     for (let y = 1; y < H - 1; y++) for (let x = (y + frameN) & 1; x < W - 1; x += 2) {
         let i = y * W + x;
         let el = grid[i];
-        let cond = CONDUCTIVITY[el];
-        if (cond === undefined) cond = (el === E.EMPTY) ? 0 : 1;
-        if (cond === 0) continue;
         let myHeat = heatGrid[i];
         if (myHeat === 0) continue;
-        let rate = cond * 0.02;
+        // Conductivity: metals spread fast, empty/wood don't
+        let cond = CONDUCTIVITY[el];
+        if (cond === undefined) cond = (el === E.EMPTY) ? 0 : 1;
+        if (cond === 0) {
+            // Even insulators lose heat (radiation), just don't transfer
+            if (myHeat > 0 && !HEAT_LVL[el]) heatGrid[i] = Math.max(0, Math.floor(myHeat * 0.9));
+            if (myHeat < 0 && !COLD_LVL[el]) heatGrid[i] = Math.min(0, Math.ceil(myHeat * 0.9));
+            continue;
+        }
+        // Transfer to 4 neighbors
         let dirs = [i - 1, i + 1, i - W, i + W];
         for (let ni of dirs) {
             if (ni < 0 || ni >= W * H) continue;
-            let nCond = CONDUCTIVITY[grid[ni]];
-            if (nCond === undefined) nCond = (grid[ni] === E.EMPTY) ? 0 : 1;
+            let nEl = grid[ni];
+            let nCond = CONDUCTIVITY[nEl];
+            if (nCond === undefined) nCond = (nEl === E.EMPTY) ? 0 : 1;
             if (nCond === 0) continue;
             let diff = myHeat - heatGrid[ni];
-            if (diff > 5) {
-                let transfer = Math.max(1, Math.floor(diff * rate * Math.min(cond, nCond) * 0.1));
-                heatGrid[i] -= transfer;
-                heatGrid[ni] += transfer;
+            if (Math.abs(diff) > 2) {
+                // Transfer rate: 5-25% of difference depending on conductivity
+                let rate = 0.05 + Math.min(cond, nCond) * 0.02;
+                let transfer = Math.max(1, Math.floor(Math.abs(diff) * rate));
+                if (diff > 0) { heatGrid[i] -= transfer; heatGrid[ni] += transfer; }
+                else { heatGrid[i] += transfer; heatGrid[ni] -= transfer; }
             }
         }
-        // Decay — cool faster when hotter, proportional loss
+        // Decay — proportional cooling
         if (myHeat > 0 && !HEAT_LVL[el]) {
-            let loss = Math.max(2, Math.floor(myHeat * 0.08));
-            heatGrid[i] = Math.max(0, myHeat - loss);
+            heatGrid[i] = Math.max(0, Math.floor(heatGrid[i] * 0.92));
         }
         if (myHeat < 0 && !COLD_LVL[el]) {
-            let gain = Math.max(2, Math.floor(-myHeat * 0.08));
-            heatGrid[i] = Math.min(0, myHeat + gain);
+            heatGrid[i] = Math.min(0, Math.ceil(heatGrid[i] * 0.92));
         }
         // Melt from conducted heat
-        if (myHeat > 100 && !HEAT_LVL[el]) {
+        if (heatGrid[i] > 100 && !HEAT_LVL[el]) {
             let mi = getMeltInfo(el);
-            if (mi && myHeat >= mi[0] * 100 && Math.random() < 0.02) {
+            if (mi && heatGrid[i] >= mi[0] * 100 && Math.random() < 0.03) {
                 grid[i] = mi[1];
-                heatGrid[i] = Math.floor(heatGrid[i] * 0.5);
+                heatGrid[i] = Math.floor(heatGrid[i] * 0.3);
                 sfxPlay('melt');
             }
         }
