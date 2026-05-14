@@ -428,10 +428,10 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
     <button class="btn" style="background:#645;font-size:10px" onclick="toolFlood()">🌊</button>
     <button class="btn" style="background:#544;font-size:10px" onclick="toolNuke()">☢️</button>
     <span style="color:#444">|</span>
-    <button class="btn" style="background:#556;font-size:10px" onclick="if(lastMX>=0)lightning(lastMX)">⚡</button>
-    <button class="btn" style="background:#565;font-size:10px" onclick="if(lastMX>=0)tornado(lastMX,lastMY)">🌪️</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="lightning(lastMX>=0?lastMX:Math.floor(W/2))">⚡</button>
+    <button class="btn" style="background:#565;font-size:10px" onclick="tornado(lastMX>=0?lastMX:Math.floor(W/2),lastMY>=0?lastMY:Math.floor(H/2))">🌪️</button>
     <button class="btn" style="background:#655;font-size:10px" onclick="earthquake()">🌍</button>
-    <button class="btn" style="background:#556;font-size:10px" onclick="if(lastMX>=0)gravityFlip(lastMX,lastMY,15)">🔄</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="gravityFlip(lastMX>=0?lastMX:Math.floor(W/2),lastMY>=0?lastMY:Math.floor(H/2),15)">🔄</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <canvas id="c"></canvas>
