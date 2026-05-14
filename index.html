@@ -1487,7 +1487,8 @@ let grid = new Uint8Array(W * H);
 let updated = new Uint8Array(W * H); // frame flag to avoid double-updates
 let neutronAge = new Uint8Array(W * H); // lifetime tracker for neutrons
 let wireCooldown = new Uint8Array(W * H); // cooldown for conductors after spark passes
-let mimicState = new Uint8Array(W * H); // what each mimic is currently imitating (0 = nothing)
+let mimicState = new Uint8Array(W * H);
+let heatGrid = new Int16Array(W * H);
 let frameN = 0;
 
 // ===================== UNDO / REDO =====================
