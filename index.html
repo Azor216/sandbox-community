@@ -424,6 +424,7 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
     <button class="btn" style="background:#445;font-size:10px" id="drawLine" onclick="setDrawMode('line')">╱ Line</button>
     <button class="btn" style="background:#445;font-size:10px" id="drawRect" onclick="setDrawMode('rect')">□ Rect</button>
     <button class="btn" style="background:#445;font-size:10px" id="drawCircle" onclick="setDrawMode('circle')">○ Circle</button>
+    <button class="btn" style="background:#445;font-size:10px" id="fillBtn" onclick="toggleFill()">▨ Fill</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="undo()">↩</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="redo()">↪</button>
     <span style="color:#444">|</span>
@@ -2104,8 +2105,9 @@ function simLiquid(x, y, spread) {
     let me = grid[idx(x, y)];
     if (y < H - 1) {
         let below = get(x, y + 1);
+        // Fall down
         if (below === E.EMPTY) { swap(x, y, x, y + 1); return; }
-        // Pass through grate: scan past all grate layers
+        // Pass through grate
         if (below === E.GRATE) {
             for (let dy = 2; y + dy < H; dy++) {
                 let b = get(x, y + dy);
@@ -2114,21 +2116,45 @@ function simLiquid(x, y, spread) {
                 break;
             }
         }
+        // Diagonal fall
         let d = Math.random() < 0.5 ? -1 : 1;
         if (get(x + d, y + 1) === E.EMPTY) { swap(x, y, x + d, y + 1); return; }
         if (get(x - d, y + 1) === E.EMPTY) { swap(x, y, x - d, y + 1); return; }
     }
+    // Level equalization: find lowest empty space within spread range
+    let bestX = -1, bestDist = 999;
     let d = Math.random() < 0.5 ? -1 : 1;
-    let range = 1 + Math.floor(Math.random() * spread);
-    for (let s = 1; s <= range; s++) {
-        if (get(x + d * s, y) === E.EMPTY) {
-            swap(x, y, x + d * s, y); return;
-        } else if (get(x + d * s, y) !== E.WATER) break;
+    // Search both directions for empty space or lower water level
+    for (let dir = -1; dir <= 1; dir += 2) {
+        for (let s = 1; s <= spread; s++) {
+            let nx = x + dir * s;
+            if (nx < 0 || nx >= W) break;
+            let nb = get(nx, y);
+            if (nb === E.EMPTY) {
+                // Check if this is a genuine lower spot (has support below or same level)
+                if (s < bestDist) { bestX = nx; bestDist = s; }
+                break;
+            }
+            if (nb !== me) break; // blocked by non-same liquid
+        }
     }
-    for (let s = 1; s <= range; s++) {
-        if (get(x - d * s, y) === E.EMPTY) {
-            swap(x, y, x - d * s, y); return;
-        } else if (get(x - d * s, y) !== E.WATER) break;
+    if (bestX >= 0) { swap(x, y, bestX, y); return; }
+    // Pressure: water column pushes sideways and up
+    if (y > 0) {
+        // Count water depth above
+        let depth = 0;
+        for (let cy = y - 1; cy >= Math.max(0, y - 8); cy--) {
+            if (get(x, cy) === me) depth++; else break;
+        }
+        // More depth = stronger push
+        if (depth >= 1 && Math.random() < 0.1 + depth * 0.05) {
+            let pd = Math.random() < 0.5 ? -1 : 1;
+            if (isEmpty(x + pd, y)) { swap(x, y, x + pd, y); return; }
+            if (isEmpty(x - pd, y)) { swap(x, y, x - pd, y); return; }
+            // Push up and to side
+            if (isEmpty(x + pd, y - 1)) { swap(x, y, x + pd, y - 1); return; }
+            if (isEmpty(x - pd, y - 1)) { swap(x, y, x - pd, y - 1); return; }
+        }
     }
 }
 
@@ -5027,6 +5053,16 @@ function toggleSpray() {
 // ===================== DRAW MODES (Line/Rect/Circle) =====================
 let drawMode = 'brush'; // 'brush', 'line', 'rect', 'circle'
 let shapeStartX = -1, shapeStartY = -1;
+let shapeFill = false;
+
+function toggleFill() {
+    shapeFill = !shapeFill;
+    let btn = document.getElementById('fillBtn');
+    if (btn) {
+        btn.style.borderColor = shapeFill ? '#ff8844' : '#444';
+        btn.style.boxShadow = shapeFill ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
+    }
+}
 
 function setDrawMode(mode) {
     drawMode = drawMode === mode ? 'brush' : mode;
@@ -5056,17 +5092,25 @@ function drawLine(x0, y0, x1, y1, type) {
 function drawRect(x0, y0, x1, y1, type) {
     let lx = Math.min(x0, x1), rx = Math.max(x0, x1);
     let ly = Math.min(y0, y1), ry = Math.max(y0, y1);
-    for (let x = lx; x <= rx; x++) { set(x, ly, type); set(x, ry, type); }
-    for (let y = ly; y <= ry; y++) { set(lx, y, type); set(rx, y, type); }
+    if (shapeFill) {
+        for (let y = ly; y <= ry; y++) for (let x = lx; x <= rx; x++) set(x, y, type);
+    } else {
+        for (let x = lx; x <= rx; x++) { set(x, ly, type); set(x, ry, type); }
+        for (let y = ly; y <= ry; y++) { set(lx, y, type); set(rx, y, type); }
+    }
 }
 
 function drawCircle(cx, cy, rx, ry, type) {
     let r = Math.max(Math.abs(rx - cx), Math.abs(ry - cy));
-    for (let a = 0; a < 360; a += 1) {
-        let rad = a * Math.PI / 180;
-        let x = cx + Math.round(Math.cos(rad) * r);
-        let y = cy + Math.round(Math.sin(rad) * r);
-        set(x, y, type);
+    if (shapeFill) {
+        for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy <= r * r) set(cx + dx, cy + dy, type);
+        }
+    } else {
+        for (let a = 0; a < 360; a += 1) {
+            let rad = a * Math.PI / 180;
+            set(cx + Math.round(Math.cos(rad) * r), cy + Math.round(Math.sin(rad) * r), type);
+        }
     }
 }
 
