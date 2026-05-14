@@ -1583,19 +1583,20 @@ CONDUCTIVITY[E.BRICK] = 2; CONDUCTIVITY[E.CONCRETE_DRY] = 2;
 CONDUCTIVITY[E.WOOD] = 0; CONDUCTIVITY[E.RUBBER] = 0; // insulators
 
 function propagateHeat() {
-    // Emit heat from sources
+    // Emit heat from sources + global decay for ALL pixels
     for (let i = 0; i < W * H; i++) {
         let el = grid[i];
         if (HEAT_LVL[el]) {
-            let target = HEAT_LVL[el] * 100;
-            heatGrid[i] = Math.max(heatGrid[i], target);
-        }
-        if (COLD_LVL[el]) {
-            let target = Math.floor(COLD_LVL[el] * 100);
-            heatGrid[i] = Math.min(heatGrid[i], target);
+            heatGrid[i] = Math.max(heatGrid[i], HEAT_LVL[el] * 100);
+        } else if (COLD_LVL[el]) {
+            heatGrid[i] = Math.min(heatGrid[i], Math.floor(COLD_LVL[el] * 100));
+        } else {
+            // Decay everything that isn't a source
+            if (heatGrid[i] > 0) heatGrid[i] = Math.max(0, Math.floor(heatGrid[i] * 0.92));
+            else if (heatGrid[i] < 0) heatGrid[i] = Math.min(0, Math.ceil(heatGrid[i] * 0.92));
         }
     }
-    // Diffuse heat — stronger, simpler
+    // Diffuse heat
     for (let y = 1; y < H - 1; y++) for (let x = (y + frameN) & 1; x < W - 1; x += 2) {
         let i = y * W + x;
         let el = grid[i];
@@ -1626,13 +1627,6 @@ function propagateHeat() {
                 if (diff > 0) { heatGrid[i] -= transfer; heatGrid[ni] += transfer; }
                 else { heatGrid[i] += transfer; heatGrid[ni] -= transfer; }
             }
-        }
-        // Decay — proportional cooling
-        if (myHeat > 0 && !HEAT_LVL[el]) {
-            heatGrid[i] = Math.max(0, Math.floor(heatGrid[i] * 0.92));
-        }
-        if (myHeat < 0 && !COLD_LVL[el]) {
-            heatGrid[i] = Math.min(0, Math.ceil(heatGrid[i] * 0.92));
         }
         // Melt from conducted heat
         if (heatGrid[i] > 100 && !HEAT_LVL[el]) {
