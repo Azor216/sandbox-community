@@ -408,7 +408,7 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
         <span id="sval">1x</span>
     </div>
     <button class="btn" style="background:#446" onclick="paused=!paused;this.textContent=paused?'▶ Play':'⏸ Pause'">⏸ Pause</button>
-    <button class="btn" style="background:#644" onclick="grid.fill(0);neutronAge.fill(0);wireCooldown.fill(0);mimicState.fill(0)">🗑 Clear</button>
+    <button class="btn" style="background:#644" onclick="grid.fill(0);neutronAge.fill(0);wireCooldown.fill(0);mimicState.fill(0);heatGrid.fill(0)">🗑 Clear</button>
     <select id="saveSlot" style="padding:3px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px;font-size:11px">
         <option value="1">Slot 1</option><option value="2">Slot 2</option><option value="3">Slot 3</option>
         <option value="4">Slot 4</option><option value="5">Slot 5</option>
@@ -1572,8 +1572,121 @@ TEMP_DISPLAY[E.STONE] = 20; TEMP_DISPLAY[E.WOOD] = 20; TEMP_DISPLAY[E.METAL] = 2
 TEMP_DISPLAY[E.ICE] = -10; TEMP_DISPLAY[E.SNOW] = -5; TEMP_DISPLAY[E.FROST] = -30;
 TEMP_DISPLAY[E.COOLER] = -20;
 
-// Melt point of materials (what heat level is needed to melt them)
-// Returns [meltPoint, result] or null if unmeltable
+function propagateHeat() {
+    // Emit heat from sources
+    for (let i = 0; i < W * H; i++) {
+        let el = grid[i];
+        if (HEAT_LVL[el]) {
+            let target = HEAT_LVL[el] * 100;
+            if (heatGrid[i] < target) heatGrid[i] = Math.min(target, heatGrid[i] + target * 0.3);
+        }
+        if (COLD_LVL[el]) {
+            let target = Math.floor(COLD_LVL[el] * 100);
+            if (heatGrid[i] > target) heatGrid[i] = Math.max(target, Math.floor(heatGrid[i] + target * 0.3));
+        }
+    }
+    // Diffuse heat to neighbors (simplified — sample every 2nd pixel for speed)
+    for (let y = 1; y < H - 1; y++) for (let x = (y & 1); x < W - 1; x += 2) {
+        let i = y * W + x;
+        let el = grid[i];
+        let cond = CONDUCTIVITY[el];
+        if (cond === undefined) cond = (el === E.EMPTY) ? 0 : 1;
+        if (cond === 0) continue; // insulator
+        let myHeat = heatGrid[i];
+        if (myHeat === 0) continue;
+        let rate = cond * 0.02;
+        // Share heat with 4 neighbors
+        let dirs = [i - 1, i + 1, i - W, i + W];
+        for (let ni of dirs) {
+            if (ni < 0 || ni >= W * H) continue;
+            let nEl = grid[ni];
+            let nCond = CONDUCTIVITY[nEl];
+            if (nCond === undefined) nCond = (nEl === E.EMPTY) ? 0 : 1;
+            if (nCond === 0) continue;
+            let diff = myHeat - heatGrid[ni];
+            if (diff > 5) {
+                let transfer = Math.floor(diff * rate * Math.min(cond, nCond) * 0.1);
+                if (transfer > 0) {
+                    heatGrid[i] -= transfer;
+                    heatGrid[ni] += transfer;
+                }
+            }
+        }
+        // Decay heat (radiation loss)
+        if (myHeat > 0 && !HEAT_LVL[el]) heatGrid[i] = Math.max(0, myHeat - 1);
+        if (myHeat < 0 && !COLD_LVL[el]) heatGrid[i] = Math.min(0, myHeat + 1);
+        // Apply melt from conducted heat
+        if (myHeat > 100 && !HEAT_LVL[el]) {
+            let mi = getMeltInfo(el);
+            if (mi && myHeat >= mi[0] * 100 && Math.random() < 0.02) {
+                grid[i] = mi[1];
+                heatGrid[i] = Math.floor(heatGrid[i] * 0.5);
+            }
+        }
+    }
+}
+
+// ===================== HEAT PROPAGATION =====================
+const CONDUCTIVITY = {};
+CONDUCTIVITY[E.METAL] = 8; CONDUCTIVITY[E.IRON] = 7; CONDUCTIVITY[E.COPPER] = 9;
+CONDUCTIVITY[E.GOLD_M] = 9; CONDUCTIVITY[E.LEAD] = 4; CONDUCTIVITY[E.TITANIUM] = 3;
+CONDUCTIVITY[E.DIAMOND] = 10; CONDUCTIVITY[E.STONE] = 2; CONDUCTIVITY[E.WATER] = 3;
+CONDUCTIVITY[E.SAND] = 1; CONDUCTIVITY[E.GLASS] = 1; CONDUCTIVITY[E.OBSIDIAN] = 1;
+CONDUCTIVITY[E.BRICK] = 2; CONDUCTIVITY[E.CONCRETE_DRY] = 2;
+CONDUCTIVITY[E.WOOD] = 0; CONDUCTIVITY[E.RUBBER] = 0; // insulators
+
+function propagateHeat() {
+    // Emit heat from sources
+    for (let i = 0; i < W * H; i++) {
+        let el = grid[i];
+        if (HEAT_LVL[el]) {
+            let target = HEAT_LVL[el] * 100;
+            if (heatGrid[i] < target) heatGrid[i] = Math.min(target, heatGrid[i] + Math.floor(target * 0.3));
+        }
+        if (COLD_LVL[el]) {
+            let target = Math.floor(COLD_LVL[el] * 100);
+            if (heatGrid[i] > target) heatGrid[i] = Math.max(target, Math.floor(heatGrid[i] + target * 0.3));
+        }
+    }
+    // Diffuse heat (sample every 2nd pixel, alternating, for speed)
+    for (let y = 1; y < H - 1; y++) for (let x = (y + frameN) & 1; x < W - 1; x += 2) {
+        let i = y * W + x;
+        let el = grid[i];
+        let cond = CONDUCTIVITY[el];
+        if (cond === undefined) cond = (el === E.EMPTY) ? 0 : 1;
+        if (cond === 0) continue;
+        let myHeat = heatGrid[i];
+        if (myHeat === 0) continue;
+        let rate = cond * 0.02;
+        let dirs = [i - 1, i + 1, i - W, i + W];
+        for (let ni of dirs) {
+            if (ni < 0 || ni >= W * H) continue;
+            let nCond = CONDUCTIVITY[grid[ni]];
+            if (nCond === undefined) nCond = (grid[ni] === E.EMPTY) ? 0 : 1;
+            if (nCond === 0) continue;
+            let diff = myHeat - heatGrid[ni];
+            if (diff > 5) {
+                let transfer = Math.max(1, Math.floor(diff * rate * Math.min(cond, nCond) * 0.1));
+                heatGrid[i] -= transfer;
+                heatGrid[ni] += transfer;
+            }
+        }
+        // Decay
+        if (myHeat > 0 && !HEAT_LVL[el]) heatGrid[i] = Math.max(0, myHeat - 1);
+        if (myHeat < 0 && !COLD_LVL[el]) heatGrid[i] = Math.min(0, myHeat + 1);
+        // Melt from conducted heat
+        if (myHeat > 100 && !HEAT_LVL[el]) {
+            let mi = getMeltInfo(el);
+            if (mi && myHeat >= mi[0] * 100 && Math.random() < 0.02) {
+                grid[i] = mi[1];
+                heatGrid[i] = Math.floor(heatGrid[i] * 0.5);
+                sfxPlay('melt');
+            }
+        }
+    }
+}
+
+// Melt point of materials
 function getMeltInfo(target) {
     switch(target) {
         case E.ICE: return [1, E.WATER];
@@ -1695,6 +1808,8 @@ function drawPixel(i, type, x, y) {
 // ===================== SIMULATION =====================
 function simulate() {
     frameN++;
+    // Heat propagation (every 3 frames for performance)
+    if (frameN % 3 === 0) propagateHeat();
     // Black hole growth (once per frame, globally)
     growBlackHoles();
     // Scan bottom-to-top so gravity works correctly; alternate L/R direction
@@ -4848,25 +4963,24 @@ function draw() {
             X.beginPath(); X.moveTo(0, gy * SCALE); X.lineTo(W * SCALE, gy * SCALE); X.stroke();
         }
     }
-    // Heat map overlay
+    // Heat map overlay (uses actual heatGrid)
     if (showHeatmap) {
         X.globalAlpha = 0.35;
         for (let hy = 0; hy < H; hy += 4) {
             for (let hx = 0; hx < W; hx += 4) {
                 let heat = 0;
                 for (let dy = 0; dy < 4; dy++) for (let dx = 0; dx < 4; dx++) {
-                    let el = get(hx + dx, hy + dy);
-                    if (HEAT_LVL[el]) heat += HEAT_LVL[el];
-                    if (COLD_LVL[el]) heat += COLD_LVL[el];
+                    heat += heatGrid[(hy + dy) * W + (hx + dx)];
                 }
+                heat = Math.floor(heat / 16); // average
                 if (heat === 0) continue;
                 if (heat > 0) {
-                    let i = Math.min(1, heat / 20);
+                    let i = Math.min(1, heat / 300);
                     let r = Math.floor(255 * i);
-                    let g = Math.floor(100 * i);
+                    let g = Math.floor(80 * i);
                     X.fillStyle = 'rgb(' + r + ',' + g + ',0)';
                 } else {
-                    let i = Math.min(1, -heat / 15);
+                    let i = Math.min(1, -heat / 200);
                     let b = Math.floor(255 * i);
                     X.fillStyle = 'rgb(0,' + Math.floor(b * 0.5) + ',' + b + ')';
                 }
@@ -4876,16 +4990,8 @@ function draw() {
         X.globalAlpha = 1;
         // Temperature display under cursor
         if (lastMX >= 0 && lastMX < W && lastMY >= 0 && lastMY < H) {
-            let el = get(lastMX, lastMY);
-            let temp = TEMP_DISPLAY[el];
-            if (temp === undefined) temp = 20;
-            // Check neighbors for heat influence
-            for (let ddx = -2; ddx <= 2; ddx++) for (let ddy = -2; ddy <= 2; ddy++) {
-                let nb = get(lastMX + ddx, lastMY + ddy);
-                if (TEMP_DISPLAY[nb] !== undefined && TEMP_DISPLAY[nb] > temp) {
-                    temp = Math.floor(temp + (TEMP_DISPLAY[nb] - temp) * 0.15);
-                }
-            }
+            let heatVal = heatGrid[lastMY * W + lastMX];
+            let temp = Math.floor(20 + heatVal * 0.5);
             let label = temp + '\u00b0C';
             let col = temp > 100 ? '#ff4400' : temp < 0 ? '#44aaff' : '#ffffff';
             X.fillStyle = 'rgba(0,0,0,0.6)';
