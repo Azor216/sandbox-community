@@ -1,0 +1,16 @@
+{
+  "name": "The Sandbox",
+  "short_name": "Sandbox",
+  "description": "Falling Sand Physics Simulator",
+  "start_url": "/sandbox-community/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#ff8844",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏖️</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}
