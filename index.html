@@ -61,6 +61,7 @@ canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;to
         <div class="mbtn" onclick="showSettings()" data-i18n="settings">⚙ Nastavení</div>
         <div class="mbtn" onclick="showHelp()" data-i18n="help">❓ Nápověda</div>
         <div class="mbtn" onclick="showGallery()" data-i18n="gallery">🌍 Galerie výtvorů</div>
+        <div class="mbtn" onclick="showTutorials()">📚 Tutoriály</div>
         <div class="mbtn" onclick="showProfile()" data-i18n="profile">👤 Můj profil</div>
         <div class="ver" data-i18n="version">v1.3 — 109 elementů — 2026</div>
     </div>
@@ -5188,9 +5189,169 @@ function showChallenges() {
 function completeChallenge(id) {
     localStorage.setItem('challenge_' + id, '1');
     profileAddXP(100);
-    showChallenges();
-    // Remove old overlay
-    document.querySelectorAll('[style*="z-index:2000"]').forEach((el, i) => { if (i > 0) el.remove(); });
+}
+
+// ===================== TUTORIALS =====================
+const TUTORIALS = [
+    {
+        id: 'basics', icon: '🎮', name: 'Základy',
+        steps: [
+            { text: 'Vítej v The Sandbox! Zvol element <b>Sand</b> v toolbaru nahoře.', elem: 'Sand' },
+            { text: 'Klikni a táhni na plátně — nakresli hromadu písku.', action: 'draw' },
+            { text: 'Teď zvol <b>Water</b> a nakresli ji nad písek.', elem: 'Water' },
+            { text: 'Pozoruj jak voda teče dolů a písek se mění na bláto! 🌊' },
+            { text: 'Zvol <b>Fire</b> a nakresli ho na dřevo.', elem: 'Fire' },
+            { text: 'Oheň hoří, šíří se a potřebuje kyslík. Zkus ho uhasit vodou!' },
+            { text: '🎉 Gratulace! Zvládl jsi základy. Experimentuj dál!' }
+        ]
+    },
+    {
+        id: 'reactor', icon: '☢️', name: 'Jaderná elektrárna',
+        steps: [
+            { text: 'Postavíme funkční jaderný reaktor! Nejdřív nakresli podlahu z <b>Stone</b>.', elem: 'Stone' },
+            { text: 'Postav stěny reaktoru z <b>Lead</b> (olovo blokuje radiaci).', elem: 'Lead' },
+            { text: 'Dovnitř dej <b>Uranium</b> (3-5 bloků).', elem: 'Uranium' },
+            { text: 'Nad uran přidej <b>Faucet</b> (kohout) — bude dodávat chladivo.', elem: 'Faucet' },
+            { text: 'Vedle reaktoru postav <b>Turbine</b> — přemění páru na spark.', elem: 'Turbine' },
+            { text: 'Napoď turbinu <b>Wire</b> (drát) k <b>Lamp</b>.', elem: 'Wire' },
+            { text: 'Přidej <b>Lamp</b> na konec drátu.', elem: 'Lamp' },
+            { text: 'Uran vaří vodu → pára → turbína → spark → lampa svítí! ⚡' },
+            { text: '⚠️ Pozor: bez vody uran přehřeje a meltdown! Drž kohoutek aktivní.' }
+        ]
+    },
+    {
+        id: 'ecosystem', icon: '🌿', name: 'Ekosystém',
+        steps: [
+            { text: 'Vytvoříme živý ekosystém! Nakresli nádrž z <b>Glass</b>.', elem: 'Glass' },
+            { text: 'Napln nádrž <b>Water</b>.', elem: 'Water' },
+            { text: 'Přidej <b>Sand</b> na dno jako substrát.', elem: 'Sand' },
+            { text: 'Zasad <b>Seed</b> do písku — vyroste strom!', elem: 'Seed' },
+            { text: 'Přidej <b>Algae</b> do vody — produkují kyslík.', elem: 'Algae' },
+            { text: 'Vlož <b>Fish</b> — ryby jedí řasy a rozmnožují se.', elem: 'Fish' },
+            { text: 'Přidej <b>Ant</b> na zem — jedí rostliny.', elem: 'Ant' },
+            { text: '🌍 Tvůj ekosystém žije! Pozoruj potravní řetězec.' }
+        ]
+    },
+    {
+        id: 'explosions', icon: '💥', name: 'Výbušniny',
+        steps: [
+            { text: 'Nauč se používat výbušniny! Nakresli řadu <b>Gunpowder</b>.', elem: 'Gunpowder' },
+            { text: 'Na jeden konec přidej <b>Fuse</b> (doutnák).', elem: 'Fuse' },
+            { text: 'Zapal doutnák <b>Fire</b> — oheň se šíří po doutnáku!', elem: 'Fire' },
+            { text: 'Teď zkus <b>C4</b> — mnohem silnější exploze!', elem: 'C4' },
+            { text: 'Postav věž z kamene a dej <b>Dynamite</b> dolů.', elem: 'Dynamite' },
+            { text: 'Přidej <b>Bomb</b> — padá a vybuchuje při dopadu!', elem: 'Bomb' },
+            { text: '🎆 Bonus: <b>Firework</b> a <b>Rocket</b> létají nahoru a vybuchují!' }
+        ]
+    },
+    {
+        id: 'electricity', icon: '⚡', name: 'Elektrické obvody',
+        steps: [
+            { text: 'Postavíme elektrický obvod! Začni s <b>Battery</b>.', elem: 'Battery' },
+            { text: 'Napoď baterii <b>Wire</b> — vede spark.', elem: 'Wire' },
+            { text: 'Na konec drátu dej <b>Lamp</b> — rozsvítí se!', elem: 'Lamp' },
+            { text: 'Zkus <b>Copper</b> (Cu Wire) — vede lépe než Wire.', elem: 'Copper' },
+            { text: 'Přidej <b>LaserGun</b> — spark ho aktivuje a střílí laser!', elem: 'LaserGun' },
+            { text: 'Tip: <b>Turbine</b> + <b>Steam</b> = spark bez baterie!' },
+            { text: '💡 Rozvětvi obvod a rozsvit více lamp najednou!' }
+        ]
+    },
+    {
+        id: 'defense', icon: '🏰', name: 'Obrana pevnosti',
+        steps: [
+            { text: 'Postavíme pevnost! Nakresli stěny z <b>Obsidian</b> (odolný explozím).', elem: 'Obsidian' },
+            { text: 'Přidej střechu z <b>Bedrock</b> (nezničitelný).', elem: 'Bedrock' },
+            { text: 'Dovnitř vlož <b>Human</b>.', elem: 'Human' },
+            { text: 'Venku postav příkop z <b>Lava</b> — nic nepřejde!', elem: 'Lava' },
+            { text: 'Přidej <b>Zombie</b> venku a pozoruj jak se nemoužou dostat dovnitř.', elem: 'Zombie' },
+            { text: 'Zkus použít Nuke (☢️ tlačítko) — přežije člověk?' },
+            { text: '🏰 Tip: <b>Lead</b> blokuje radiaci z jaderného výbuchu!' }
+        ]
+    }
+];
+
+let tutorialActive = null;
+let tutorialStep = 0;
+
+function showTutorials() {
+    let overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;overflow-y:auto;padding:30px';
+    let html = '<div style="max-width:600px;margin:0 auto;color:#ccc">' +
+        '<h2 style="color:#ff8844;text-align:center;margin-bottom:16px">📚 Tutoriály</h2>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px">';
+    TUTORIALS.forEach(tut => {
+        let done = (localStorage.getItem('tutorial_' + tut.id) === '1');
+        html += '<div style="background:#1a1a2e;border:1px solid ' + (done ? '#44aa44' : '#555') + ';border-radius:10px;padding:14px;cursor:pointer" data-tut="' + tut.id + '">' +
+            '<div style="font-size:36px;text-align:center">' + tut.icon + '</div>' +
+            '<div style="font-weight:bold;color:' + (done ? '#44aa44' : '#ff8844') + ';text-align:center;font-size:15px;margin-top:4px">' + (done ? '✅ ' : '') + escHtml(tut.name) + '</div>' +
+            '<div style="font-size:11px;color:#888;text-align:center;margin-top:4px">' + tut.steps.length + ' kroků</div>' +
+            '</div>';
+    });
+    html += '</div><br><div style="text-align:center"><button class="mbtn" style="display:inline-block;width:auto;padding:10px 30px" data-close="1">✕ Zavřít</button></div></div>';
+    overlay.innerHTML = html;
+    overlay.addEventListener('click', e => {
+        let tut = e.target.closest('[data-tut]');
+        if (tut) { startTutorial(tut.dataset.tut); overlay.remove(); }
+        if (e.target.dataset.close) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+}
+
+function startTutorial(id) {
+    let tut = TUTORIALS.find(t => t.id === id);
+    if (!tut) return;
+    tutorialActive = tut;
+    tutorialStep = 0;
+    // Start game if in menu
+    document.getElementById('menu').style.display = 'none';
+    document.getElementById('game').style.display = 'flex';
+    C.width = W * SCALE; C.height = H * SCALE; X.imageSmoothingEnabled = false;
+    grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0);
+    paused = false;
+    showTutorialStep();
+}
+
+function showTutorialStep() {
+    if (!tutorialActive) return;
+    let step = tutorialActive.steps[tutorialStep];
+    // Remove old tutorial box
+    let old = document.getElementById('tutBox');
+    if (old) old.remove();
+    let box = document.createElement('div');
+    box.id = 'tutBox';
+    box.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(10,10,30,0.95);border:2px solid #ff8844;border-radius:12px;padding:14px 20px;color:#eee;font-size:14px;z-index:900;max-width:500px;text-align:center;box-shadow:0 0 20px rgba(255,136,68,0.3)';
+    let isLast = tutorialStep >= tutorialActive.steps.length - 1;
+    box.innerHTML = '<div style="font-size:11px;color:#ff8844;margin-bottom:6px">' + escHtml(tutorialActive.name) + ' — krok ' + (tutorialStep + 1) + '/' + tutorialActive.steps.length + '</div>' +
+        '<div style="margin-bottom:10px">' + step.text + '</div>' +
+        (step.elem ? '<div style="margin-bottom:8px"><button class="btn" style="background:#354;font-size:12px;padding:4px 12px" data-selelem="' + step.elem + '">👉 Zvol ' + step.elem + '</button></div>' : '') +
+        '<div style="display:flex;gap:8px;justify-content:center">' +
+        (tutorialStep > 0 ? '<button class="btn" style="background:#445;padding:5px 14px" data-tutprev="1">◀ Zpět</button>' : '') +
+        (isLast ? '<button class="btn" style="background:#484;padding:5px 14px" data-tutdone="1">✓ Hotovo!</button>' :
+            '<button class="btn" style="background:#454;padding:5px 14px" data-tutnext="1">Dál ▶</button>') +
+        '<button class="btn" style="background:#644;padding:5px 14px" data-tutquit="1">✕</button>' +
+        '</div>';
+    box.addEventListener('click', e => {
+        if (e.target.dataset.tutnext) { tutorialStep++; showTutorialStep(); }
+        if (e.target.dataset.tutprev) { tutorialStep--; showTutorialStep(); }
+        if (e.target.dataset.tutdone) { endTutorial(true); }
+        if (e.target.dataset.tutquit) { endTutorial(false); }
+        if (e.target.dataset.selelem) {
+            let eName = e.target.dataset.selelem;
+            for (let el of ELEMS) { if (!el.group && el.name === eName) { selectElem(el.id); break; } }
+        }
+    });
+    document.body.appendChild(box);
+}
+
+function endTutorial(completed) {
+    if (completed && tutorialActive) {
+        localStorage.setItem('tutorial_' + tutorialActive.id, '1');
+        profileAddXP(200);
+    }
+    tutorialActive = null;
+    tutorialStep = 0;
+    let box = document.getElementById('tutBox');
+    if (box) box.remove();
 }
 
 // ===================== TOOL TOGGLES =====================
