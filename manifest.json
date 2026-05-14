@@ -5,7 +5,7 @@
   "start_url": "/sandbox-community/",
   "display": "standalone",
   "background_color": "#1a1a2e",
-  "theme_color": "#ff8844",
+  "theme_color": "#1a1a2e",
   "icons": [
     {
       "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='15' fill='%231a1a2e'/%3E%3Ctext x='50' y='72' text-anchor='middle' font-size='70' font-weight='bold' font-family='Courier New' fill='%23ff8844'%3ES%3C/text%3E%3C/svg%3E",
