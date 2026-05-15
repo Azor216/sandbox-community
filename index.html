@@ -111,11 +111,12 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
             <span data-i18n="worldSize">Velikost světa</span>
-            <select id="setWorldSize" style="padding:4px 8px;background:#333;color:#ccc;border:1px solid #555;border-radius:4px">
-                <option value="small" data-i18n="sizeSmall">Malý (200×150)</option>
-                <option value="medium" selected data-i18n="sizeMedium">Střední (400×300)</option>
-                <option value="large" data-i18n="sizeLarge">Velký (600×400)</option>
-            </select>
+            <div style="display:flex;align-items:center;gap:6px">
+                <button class="btn" style="background:#445;padding:4px 10px" onclick="changeWorldSize(-1)">−</button>
+                <span id="worldSizeLabel" style="min-width:90px;text-align:center;font-size:13px">400×300</span>
+                <button class="btn" style="background:#445;padding:4px 10px" onclick="changeWorldSize(1)">+</button>
+                <button class="btn" style="background:#456;padding:4px 8px;font-size:10px" onclick="autoWorldSize()">Auto</button>
+            </div>
         </div>
 
         <div style="display:flex;align-items:center;justify-content:space-between;margin:8px 0">
@@ -399,9 +400,8 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
 <div id="controls" style="display:flex;align-items:center;gap:8px;padding:4px">
     <div id="brushSize">
         <span>Brush:</span>
-        <button class="btn" style="background:#444;font-size:12px;padding:2px 8px" onclick="changeBrush(-1)">−</button>
+        <input type="range" id="bsize" min="1" max="12" value="3">
         <span id="bval">3</span>
-        <button class="btn" style="background:#444;font-size:12px;padding:2px 8px" onclick="changeBrush(1)">+</button>
     </div>
     <div style="display:flex;align-items:center;gap:4px;font-size:12px">
         <span>Speed:</span>
@@ -5008,13 +5008,12 @@ C.addEventListener('mousedown', e => {
     initAudio();
     let [gx, gy] = canvasToGrid(e.clientX, e.clientY);
     if (e.button === 0) {
-        // Pipette mode: pick element under cursor, then auto-disable
+        // Pipette mode: pick element under cursor
         if (pipetteMode) {
             if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
                 let picked = get(gx, gy);
                 if (picked !== E.EMPTY) selectElem(picked);
             }
-            togglePipette(); // auto-off
             lastMX = gx; lastMY = gy;
             return;
         }
@@ -5063,13 +5062,12 @@ C.addEventListener('touchstart', e => {
     let touch = e.touches[0];
     let [gx, gy] = canvasToGrid(touch.clientX, touch.clientY);
     lastMX = gx; lastMY = gy;
-    // Pipette mode on touch: pick and auto-off
+    // Pipette mode
     if (pipetteMode) {
         if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
             let picked = get(gx, gy);
             if (picked !== E.EMPTY) selectElem(picked);
         }
-        togglePipette();
         return;
     }
     undoSnapshot();
@@ -5107,11 +5105,10 @@ C.addEventListener('wheel', e => {
     document.getElementById('bsize').value = brushR;
     document.getElementById('bval').textContent = brushR;
 });
-
-function changeBrush(delta) {
-    brushR = Math.max(1, Math.min(12, brushR + delta));
+document.getElementById('bsize').addEventListener('input', e => {
+    brushR = parseInt(e.target.value);
     document.getElementById('bval').textContent = brushR;
-}
+});
 
 document.addEventListener('keydown', e => {
     let n = e.key;
@@ -5973,12 +5970,55 @@ function showHelp() {
     document.getElementById('help').style.display = 'block';
 }
 
+// ===================== WORLD SIZE =====================
+const WORLD_SIZES = [
+    [200, 150], [300, 225], [400, 300], [500, 375], [600, 400], [800, 500]
+];
+let pendingW = W, pendingH = H;
+
+function findSizeIndex() {
+    for (let i = 0; i < WORLD_SIZES.length; i++) {
+        if (WORLD_SIZES[i][0] === pendingW && WORLD_SIZES[i][1] === pendingH) return i;
+    }
+    return 2; // default medium
+}
+
+function changeWorldSize(dir) {
+    let idx = findSizeIndex() + dir;
+    idx = Math.max(0, Math.min(WORLD_SIZES.length - 1, idx));
+    pendingW = WORLD_SIZES[idx][0];
+    pendingH = WORLD_SIZES[idx][1];
+    updateWorldSizeLabel();
+}
+
+function autoWorldSize() {
+    let sw = window.innerWidth;
+    let sh = window.innerHeight - 200; // leave room for UI
+    // Find biggest size that fits
+    for (let i = WORLD_SIZES.length - 1; i >= 0; i--) {
+        if (WORLD_SIZES[i][0] * 2 <= sw && WORLD_SIZES[i][1] * 2 <= sh) {
+            pendingW = WORLD_SIZES[i][0];
+            pendingH = WORLD_SIZES[i][1];
+            updateWorldSizeLabel();
+            return;
+        }
+    }
+    pendingW = WORLD_SIZES[0][0];
+    pendingH = WORLD_SIZES[0][1];
+    updateWorldSizeLabel();
+}
+
+function updateWorldSizeLabel() {
+    let el = document.getElementById('worldSizeLabel');
+    if (el) el.textContent = pendingW + '×' + pendingH;
+}
+
 function showSettings() {
     document.getElementById('settings').style.display = 'block';
     document.getElementById('setLang').value = currentLang;
+    updateWorldSizeLabel();
     // Load saved settings
     let s = JSON.parse(localStorage.getItem('sandbox_settings') || '{}');
-    if (s.worldSize) document.getElementById('setWorldSize').value = s.worldSize;
     if (s.scale) document.getElementById('setScale').value = s.scale;
     if (s.speed) document.getElementById('setSpeed').value = s.speed;
     if (s.brush) { document.getElementById('setDefaultBrush').value = s.brush; document.getElementById('setDBval').textContent = s.brush; }
@@ -6037,7 +6077,6 @@ let feat = { gravity: true, fire: true, electricity: true, nuclear: true, life: 
 })();
 
 function applySettings() {
-    let worldSize = document.getElementById('setWorldSize').value;
     let scale = parseInt(document.getElementById('setScale').value);
     let speed = parseInt(document.getElementById('setSpeed').value);
     let brush = parseInt(document.getElementById('setDefaultBrush').value);
@@ -6084,7 +6123,7 @@ function applySettings() {
     showGrid = document.getElementById('setGrid').checked;
     showHeatmap = document.getElementById('setHeatmap').checked;
 
-    localStorage.setItem('sandbox_settings', JSON.stringify({ worldSize, scale, speed, brush, showFps, bgColor,
+    localStorage.setItem('sandbox_settings', JSON.stringify({ worldW: pendingW, worldH: pendingH, scale, speed, brush, showFps, bgColor,
         soundEnabled: sfxEnabled, volume: Math.round(sfxVolume * 100),
         gravity: feat.gravity, fire: feat.fire, electricity: feat.electricity, nuclear: feat.nuclear,
         life: feat.life, explosions: feat.explosions, liquids: feat.liquids, weather: feat.weather,
@@ -6093,11 +6132,8 @@ function applySettings() {
 
     document.getElementById('settings').style.display = 'none';
 
-    // World size / scale changes need reload
-    let sizes = { small: [200,150], medium: [400,300], large: [600,400] };
-    let newW = sizes[worldSize][0], newH = sizes[worldSize][1];
-    if (newW !== W || newH !== H || scale !== SCALE) {
-        alert('Změna velikosti světa/scale se projeví po restartu hry (🏠 Menu → 🎮 Nová hra).');
+    if (pendingW !== W || pendingH !== H || scale !== SCALE) {
+        alert(t('sizeChangeRestart'));
     }
 }
 
