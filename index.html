@@ -399,8 +399,9 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
 <div id="controls" style="display:flex;align-items:center;gap:8px;padding:4px">
     <div id="brushSize">
         <span>Brush:</span>
-        <input type="range" id="bsize" min="1" max="12" value="3">
+        <button class="btn" style="background:#444;font-size:12px;padding:2px 8px" onclick="changeBrush(-1)">−</button>
         <span id="bval">3</span>
+        <button class="btn" style="background:#444;font-size:12px;padding:2px 8px" onclick="changeBrush(1)">+</button>
     </div>
     <div style="display:flex;align-items:center;gap:4px;font-size:12px">
         <span>Speed:</span>
@@ -5007,12 +5008,13 @@ C.addEventListener('mousedown', e => {
     initAudio();
     let [gx, gy] = canvasToGrid(e.clientX, e.clientY);
     if (e.button === 0) {
-        // Pipette mode: pick element under cursor
+        // Pipette mode: pick element under cursor, then auto-disable
         if (pipetteMode) {
             if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
                 let picked = get(gx, gy);
                 if (picked !== E.EMPTY) selectElem(picked);
             }
+            togglePipette(); // auto-off
             lastMX = gx; lastMY = gy;
             return;
         }
@@ -5061,12 +5063,13 @@ C.addEventListener('touchstart', e => {
     let touch = e.touches[0];
     let [gx, gy] = canvasToGrid(touch.clientX, touch.clientY);
     lastMX = gx; lastMY = gy;
-    // Pipette mode
+    // Pipette mode on touch: pick and auto-off
     if (pipetteMode) {
         if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
             let picked = get(gx, gy);
             if (picked !== E.EMPTY) selectElem(picked);
         }
+        togglePipette();
         return;
     }
     undoSnapshot();
@@ -5104,10 +5107,11 @@ C.addEventListener('wheel', e => {
     document.getElementById('bsize').value = brushR;
     document.getElementById('bval').textContent = brushR;
 });
-document.getElementById('bsize').addEventListener('input', e => {
-    brushR = parseInt(e.target.value);
+
+function changeBrush(delta) {
+    brushR = Math.max(1, Math.min(12, brushR + delta));
     document.getElementById('bval').textContent = brushR;
-});
+}
 
 document.addEventListener('keydown', e => {
     let n = e.key;
