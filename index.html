@@ -31,7 +31,7 @@ body{background:#1a1a2e;display:flex;flex-direction:column;align-items:center;fo
 #brushSize{display:flex;align-items:center;gap:3px;font-size:11px;flex-shrink:0}
 #brushSize input{width:50px}
 #controls{display:flex;align-items:center;gap:4px;flex-shrink:0;flex-wrap:wrap;padding:2px 4px;max-width:820px}
-canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;flex-shrink:0;touch-action:none;max-width:100%}
+canvas{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:none;max-width:100%;height:auto}
 #info{font-size:9px;color:#555;padding:2px;text-align:center}
 @media (max-width:820px) {
     #menu h1{font-size:36px}
@@ -4991,12 +4991,20 @@ let erasing = false;
 let lastMX = -1, lastMY = -1;
 let paused = false;
 
+function canvasToGrid(clientX, clientY) {
+    let rect = C.getBoundingClientRect();
+    let scaleX = C.width / rect.width;
+    let scaleY = C.height / rect.height;
+    return [
+        Math.floor((clientX - rect.left) * scaleX / SCALE),
+        Math.floor((clientY - rect.top) * scaleY / SCALE)
+    ];
+}
+
 C.addEventListener('mousedown', e => {
     e.preventDefault();
     initAudio();
-    let rect = C.getBoundingClientRect();
-    let gx = Math.floor((e.clientX - rect.left) / SCALE);
-    let gy = Math.floor((e.clientY - rect.top) / SCALE);
+    let [gx, gy] = canvasToGrid(e.clientX, e.clientY);
     if (e.button === 0) {
         undoSnapshot();
         if (drawMode !== 'brush') {
@@ -5011,6 +5019,7 @@ C.addEventListener('mousedown', e => {
             if (picked !== E.EMPTY) selectElem(picked);
         }
     }
+    lastMX = gx; lastMY = gy;
 });
 C.addEventListener('mouseup', e => {
     if (e.button === 0) {
@@ -5029,9 +5038,8 @@ C.addEventListener('mouseup', e => {
 C.addEventListener('mouseleave', () => { painting = false; erasing = false; lastMX = -1; });
 C.addEventListener('contextmenu', e => e.preventDefault());
 C.addEventListener('mousemove', e => {
-    let rect = C.getBoundingClientRect();
-    lastMX = Math.floor((e.clientX - rect.left) / SCALE);
-    lastMY = Math.floor((e.clientY - rect.top) / SCALE);
+    let [gx, gy] = canvasToGrid(e.clientX, e.clientY);
+    lastMX = gx; lastMY = gy;
     if (!painting && !erasing) updateTooltip();
     else { let tip = document.getElementById('tooltip'); if (tip) tip.style.display = 'none'; }
 });
@@ -5043,18 +5051,16 @@ C.addEventListener('touchstart', e => {
     undoSnapshot();
     painting = true;
     let touch = e.touches[0];
-    let rect = C.getBoundingClientRect();
-    lastMX = Math.floor((touch.clientX - rect.left) / SCALE);
-    lastMY = Math.floor((touch.clientY - rect.top) / SCALE);
+    let [gx, gy] = canvasToGrid(touch.clientX, touch.clientY);
+    lastMX = gx; lastMY = gy;
     sfxPlay('place');
 }, { passive: false });
 
 C.addEventListener('touchmove', e => {
     e.preventDefault();
     let touch = e.touches[0];
-    let rect = C.getBoundingClientRect();
-    lastMX = Math.floor((touch.clientX - rect.left) / SCALE);
-    lastMY = Math.floor((touch.clientY - rect.top) / SCALE);
+    let [gx, gy] = canvasToGrid(touch.clientX, touch.clientY);
+    lastMX = gx; lastMY = gy;
 }, { passive: false });
 
 C.addEventListener('touchend', e => {
