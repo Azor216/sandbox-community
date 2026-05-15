@@ -421,6 +421,7 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
 <div id="controls2" style="display:flex;align-items:center;gap:4px;padding:2px 4px;flex-wrap:wrap">
     <button class="btn" style="background:#533;font-size:10px" id="eraseBtn" onclick="toggleErase()">🧹 Erase</button>
     <button class="btn" style="background:#454;font-size:10px" id="sprayBtn" onclick="toggleSpray()">💨 Spray</button>
+    <button class="btn" style="background:#546;font-size:10px" id="pipetteBtn" onclick="togglePipette()">💉 Pick</button>
     <button class="btn" style="background:#445;font-size:10px" id="drawLine" onclick="setDrawMode('line')">╱ Line</button>
     <button class="btn" style="background:#445;font-size:10px" id="drawRect" onclick="setDrawMode('rect')">□ Rect</button>
     <button class="btn" style="background:#445;font-size:10px" id="drawCircle" onclick="setDrawMode('circle')">○ Circle</button>
@@ -5006,6 +5007,15 @@ C.addEventListener('mousedown', e => {
     initAudio();
     let [gx, gy] = canvasToGrid(e.clientX, e.clientY);
     if (e.button === 0) {
+        // Pipette mode: pick element under cursor
+        if (pipetteMode) {
+            if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
+                let picked = get(gx, gy);
+                if (picked !== E.EMPTY) selectElem(picked);
+            }
+            lastMX = gx; lastMY = gy;
+            return;
+        }
         undoSnapshot();
         if (drawMode !== 'brush') {
             shapeStartX = gx; shapeStartY = gy;
@@ -5048,10 +5058,18 @@ C.addEventListener('mousemove', e => {
 C.addEventListener('touchstart', e => {
     e.preventDefault();
     initAudio();
-    undoSnapshot();
     let touch = e.touches[0];
     let [gx, gy] = canvasToGrid(touch.clientX, touch.clientY);
     lastMX = gx; lastMY = gy;
+    // Pipette mode
+    if (pipetteMode) {
+        if (gx >= 0 && gx < W && gy >= 0 && gy < H) {
+            let picked = get(gx, gy);
+            if (picked !== E.EMPTY) selectElem(picked);
+        }
+        return;
+    }
+    undoSnapshot();
     if (drawMode !== 'brush') {
         shapeStartX = gx; shapeStartY = gy;
     }
@@ -5114,6 +5132,18 @@ document.addEventListener('keydown', e => {
 
 let sprayMode = false;
 let eraseMode = false;
+let pipetteMode = false;
+
+function togglePipette() {
+    pipetteMode = !pipetteMode;
+    let btn = document.getElementById('pipetteBtn');
+    if (btn) {
+        btn.style.borderColor = pipetteMode ? '#44aaff' : '#444';
+        btn.style.boxShadow = pipetteMode ? '0 0 8px rgba(68,170,255,0.5)' : 'none';
+    }
+    if (pipetteMode) C.style.cursor = 'copy';
+    else C.style.cursor = 'crosshair';
+}
 
 function toggleErase() {
     eraseMode = !eraseMode;
