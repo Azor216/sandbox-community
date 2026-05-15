@@ -1509,7 +1509,7 @@ function undo() {
     redoStack.push(grid.slice());
     let state = undoStack.pop();
     grid.set(state);
-    neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0);
+    neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); heatGrid.fill(0);
 }
 
 function redo() {
@@ -1517,7 +1517,7 @@ function redo() {
     undoStack.push(grid.slice());
     let state = redoStack.pop();
     grid.set(state);
-    neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0);
+    neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); heatGrid.fill(0);
 }
 
 function idx(x, y) { return y * W + x; }
@@ -5116,7 +5116,7 @@ document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && n === 'z') { e.preventDefault(); undo(); return; }
     if ((e.ctrlKey || e.metaKey) && (n === 'y' || (e.shiftKey && n === 'Z'))) { e.preventDefault(); redo(); return; }
     if (n === 'p' || n === 'P') { paused = !paused; return; }
-    if (n === 'c' || n === 'C') { grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); return; }
+    if (n === 'c' || n === 'C') { grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); heatGrid.fill(0); return; }
     if (n === 'l' || n === 'L') { if (lastMX >= 0) lightning(lastMX); return; }
     if (n === 't' || n === 'T') { if (lastMX >= 0) tornado(lastMX, lastMY); return; }
     if (n === 'q' || n === 'Q') { earthquake(); return; }
@@ -5524,7 +5524,7 @@ function startTutorial(id) {
     document.getElementById('menu').style.display = 'none';
     document.getElementById('game').style.display = 'flex';
     C.width = W * SCALE; C.height = H * SCALE; X.imageSmoothingEnabled = false;
-    grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0);
+    grid.fill(0); neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); heatGrid.fill(0);
     paused = false;
     showTutorialStep();
 }
