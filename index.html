@@ -441,6 +441,8 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
     <button class="btn" style="background:#556;font-size:10px" id="tGravity" onclick="toggleTool('gravity')">🔄</button>
     <span style="color:#444">|</span>
     <button class="btn" style="background:#353;font-size:10px" onclick="showChallenges()">🎯</button>
+    <button class="btn" style="background:#345;font-size:10px" onclick="takeScreenshot()">📸</button>
+    <button class="btn" style="background:#453;font-size:10px" id="recBtn" onclick="toggleRecording()">⏺ Rec</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <div id="tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#eee;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;border:1px solid #555;max-width:200px"></div>
@@ -557,7 +559,7 @@ cs: {
     eRadiation:'Radiace',eCite:'Hlína',eBrick:'Cihla',eTorch:'Pochodeň',eRepulsor:'Odpuzovač',
     eConcrete:'Beton',eConcreteDry:'Tvrdý bet.',eMimic:'Mimik',
     ePlasma:'Plazma',eHoney:'Med',eFungus:'Houba',eSmokeBomb:'Dymovnice',
-    eRotWood:'Shnilina',eGrate:'Mřížka',
+    eRotWood:'Shnilina',eGrate:'Mřížka',eVortex:'Vír',
 },
 en: {
     subtitle:'Falling Sand Physics Simulator', newGame:'🎮 New Game', loadGame:'📂 Load Saved',
@@ -718,7 +720,7 @@ de: {
     eMolten:'Geschmolzen',eRadiation:'Strahlung',eCite:'Ton',eBrick:'Ziegel',eTorch:'Fackel',
     eRepulsor:'Repulsor',eConcrete:'Beton',eConcreteDry:'Hartbeton',eMimic:'Mimik',
     ePlasma:'Plasma',eHoney:'Honig',eFungus:'Pilz',eSmokeBomb:'Rauchbombe',
-    eRotWood:'Morschholz',eGrate:'Gitter',
+    eRotWood:'Morschholz',eGrate:'Gitter',eVortex:'Wirbel',
 },
 es: {
     subtitle:'Simulador Físico de Arena', newGame:'🎮 Nuevo Juego', loadGame:'📂 Cargar',
@@ -810,7 +812,7 @@ es: {
     eMolten:'Fundido',eRadiation:'Radiación',eCite:'Arcilla',eBrick:'Ladrillo',eTorch:'Antorcha',
     eRepulsor:'Repulsor',eConcrete:'Hormigón',eConcreteDry:'Horm. duro',eMimic:'Mimético',
     ePlasma:'Plasma',eHoney:'Miel',eFungus:'Hongo',eSmokeBomb:'Bomba humo',
-    eRotWood:'Madera podr.',eGrate:'Rejilla',
+    eRotWood:'Madera podr.',eGrate:'Rejilla',eVortex:'Vórtice',
 }
 };
 
@@ -841,7 +843,7 @@ const ELEM_I18N = {
     'Torch':'eTorch','Repulsor':'eRepulsor','Concrete':'eConcrete','HardCncr':'eConcreteDry',
     'Mimic':'eMimic',
     'Plasma':'ePlasma','Honey':'eHoney','Fungus':'eFungus','SmokeBomb':'eSmokeBomb',
-    'RotWood':'eRotWood','Grate':'eGrate',
+    'RotWood':'eRotWood','Grate':'eGrate','Vortex':'eVortex',
     'Liquid_Wax':'eLiquidWax',
 };
 const GROUP_I18N = {
@@ -1336,6 +1338,7 @@ const E = {
     SMOKE_BOMB: 113,
     ROTTEN_WOOD: 114,
     GRATE: 115,
+    VORTEX: 116,
 };
 
 const ELEMS = [
@@ -1480,6 +1483,7 @@ const ELEMS = [
     { id: E.LIFE, name: 'Life', col: '#00ff88', key: '' },
     { id: E.MIMIC, name: 'Mimic', col: '#9966cc', key: '' },
     { id: E.PLASMA, name: 'Plasma', col: '#dd44ff', key: '' },
+    { id: E.VORTEX, name: 'Vortex', col: '#3366aa', key: '' },
     // — Eraser —
     { id: E.ERASER, name: 'Eraser', col: '#222', key: 'x' },
 ];
@@ -1725,13 +1729,13 @@ setBC(E.CLAY,160,110,60); setBC(E.BRICK,190,65,45); setBC(E.TORCH,255,170,30);
 setBC(E.REPULSOR,60,160,255); setBC(E.CONCRETE,150,148,130); setBC(E.CONCRETE_DRY,165,165,160);
 setBC(E.MIMIC,150,100,200); setBC(E.PLASMA,220,68,255); setBC(E.HONEY,220,170,34);
 setBC(E.FUNGUS,136,119,68); setBC(E.SMOKE_BOMB,85,102,102); setBC(E.ROTTEN_WOOD,90,74,42);
-setBC(E.GRATE,136,153,153);
+setBC(E.GRATE,136,153,153); setBC(E.VORTEX,51,102,170);
 
 // Fast hash for spatial variation (no Math.sin)
 function hash8(x, y) { return ((x * 374761393 + y * 668265263) >>> 16) & 31; }
 
 // Animated types that need flicker
-const ANIM = new Set([E.FIRE,E.LAVA,E.EMBER,E.SPARK,E.NAPALM,E.FIREWORK,E.DRAGON,E.LASER,E.NEUTRON,E.ANTIMATTER,E.FIREFLY,E.URANIUM,E.LIGHT,E.ROCKET,E.BLACK_HOLE,E.CORRUPT,E.PURIFY,E.MOLTEN,E.RADIATION,E.TORCH,E.REPULSOR,E.MIMIC,E.PLASMA]);
+const ANIM = new Set([E.FIRE,E.LAVA,E.EMBER,E.SPARK,E.NAPALM,E.FIREWORK,E.DRAGON,E.LASER,E.NEUTRON,E.ANTIMATTER,E.FIREFLY,E.URANIUM,E.LIGHT,E.ROCKET,E.BLACK_HOLE,E.CORRUPT,E.PURIFY,E.MOLTEN,E.RADIATION,E.TORCH,E.REPULSOR,E.MIMIC,E.PLASMA,E.VORTEX]);
 
 function drawPixel(i, type, x, y) {
     let drawType = type;
@@ -2037,6 +2041,43 @@ function smokeExplosion(cx, cy, radius) {
 }
 
 // --- ROTTEN WOOD: crumbles, spreads rot to wood, breeds fungus ---
+// --- VORTEX: spins everything around it in a circle ---
+function simVortex(x, y) {
+    let radius = 8;
+    for (let r = 2; r <= radius; r++) {
+        // Spin particles in circular motion around center
+        let steps = Math.max(4, r * 3);
+        for (let i = 0; i < steps; i++) {
+            let angle = (i / steps) * Math.PI * 2 + frameN * 0.15;
+            let nextAngle = angle + Math.PI * 2 / steps;
+            let px = x + Math.round(Math.cos(angle) * r);
+            let py = y + Math.round(Math.sin(angle) * r);
+            let nx = x + Math.round(Math.cos(nextAngle) * r);
+            let ny = y + Math.round(Math.sin(nextAngle) * r);
+            if (px < 0 || px >= W || py < 0 || py >= H) continue;
+            if (nx < 0 || nx >= W || ny < 0 || ny >= H) continue;
+            let srcEl = get(px, py);
+            if (srcEl === E.EMPTY || srcEl === E.VORTEX || srcEl === E.BEDROCK || srcEl === E.VOID) continue;
+            let dstEl = get(nx, ny);
+            if (dstEl === E.EMPTY && Math.random() < 0.3) {
+                swap(px, py, nx, ny);
+            }
+        }
+    }
+    // Pull things inward slightly
+    for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) {
+        let dist2 = dx*dx + dy*dy;
+        if (dist2 < 4 || dist2 > radius*radius) continue;
+        let px = x + dx, py = y + dy;
+        let el = get(px, py);
+        if (el === E.EMPTY || el === E.VORTEX || el === E.BEDROCK) continue;
+        if (Math.random() < 0.05) {
+            let mx = dx > 0 ? -1 : 1, my = dy > 0 ? -1 : 1;
+            if (isEmpty(px + mx, py + my)) swap(px, py, px + mx, py + my);
+        }
+    }
+}
+
 function simRottenWood(x, y) {
     // Crumble slowly — falls apart over time
     if (Math.random() < 0.003) { set(x, y, E.MUD); sfxPlay('crumble'); return; }
@@ -5259,6 +5300,7 @@ ELEM_INFO[E.TAR] = 'Těžká lepkavá tekutina, chytá tvory';
 ELEM_INFO[E.SMOKE_BOMB] = 'Exploze → masivní kouřový oblak';
 ELEM_INFO[E.HEATER] = 'Ohřívá okolí, taví led/sníh/vosk';
 ELEM_INFO[E.COOLER] = 'Chladí okolí, mrazí vodu/lávu';
+ELEM_INFO[E.VORTEX] = 'Rotuje vše kolem sebe v kruhu, vtahuje dovnitř';
 
 function updateTooltip() {
     let tip = document.getElementById('tooltip');
@@ -5642,6 +5684,127 @@ function paint() {
     if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
 }
 
+// ===================== SCREENSHOT =====================
+function takeScreenshot() {
+    let link = document.createElement('a');
+    link.download = 'sandbox_' + Date.now() + '.png';
+    link.href = C.toDataURL('image/png');
+    link.click();
+}
+
+// ===================== REPLAY =====================
+let recording = false;
+let replayFrames = [];
+const REPLAY_MAX_FRAMES = 300; // 5 seconds at 60fps
+
+function toggleRecording() {
+    recording = !recording;
+    let btn = document.getElementById('recBtn');
+    if (recording) {
+        replayFrames = [];
+        btn.style.borderColor = '#ff2222';
+        btn.style.boxShadow = '0 0 8px rgba(255,34,34,0.6)';
+        btn.textContent = '⏺ Rec';
+    } else {
+        btn.style.borderColor = '#444';
+        btn.style.boxShadow = 'none';
+        btn.textContent = '⏺ Rec';
+        if (replayFrames.length > 10) {
+            playReplay();
+        }
+    }
+}
+
+function captureFrame() {
+    if (!recording) return;
+    replayFrames.push(grid.slice());
+    if (replayFrames.length > REPLAY_MAX_FRAMES) {
+        replayFrames.shift();
+    }
+}
+
+function playReplay() {
+    if (replayFrames.length === 0) return;
+    let wasPaused = paused;
+    paused = true;
+    let overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:2000;display:flex;flex-direction:column;align-items:center;justify-content:center';
+    let replayCanvas = document.createElement('canvas');
+    replayCanvas.width = W * SCALE;
+    replayCanvas.height = H * SCALE;
+    replayCanvas.style.cssText = 'max-width:90vw;max-height:70vh;border:2px solid #ff8844;border-radius:4px';
+    let rX = replayCanvas.getContext('2d');
+    rX.imageSmoothingEnabled = false;
+    let controls = document.createElement('div');
+    controls.style.cssText = 'margin-top:10px;display:flex;gap:8px;align-items:center';
+    controls.innerHTML = '<span style="color:#ff8844;font-size:14px">▶ Replay</span>' +
+        '<input type="range" id="replaySlider" min="0" max="' + (replayFrames.length-1) + '" value="0" style="width:300px;max-width:60vw">' +
+        '<span id="replayFrame" style="color:#888;font-size:12px">0/' + replayFrames.length + '</span>' +
+        '<button class="btn" style="background:#446;padding:5px 12px" id="replayPlayBtn">▶</button>' +
+        '<button class="btn" style="background:#644;padding:5px 12px" data-close="1">✕</button>';
+    overlay.appendChild(replayCanvas);
+    overlay.appendChild(controls);
+    document.body.appendChild(overlay);
+
+    let playIdx = 0;
+    let playing = false;
+    let playTimer = null;
+
+    function renderReplayFrame(idx) {
+        let frame = replayFrames[idx];
+        if (!frame) return;
+        let rbuf = document.createElement('canvas');
+        rbuf.width = W; rbuf.height = H;
+        let rbx = rbuf.getContext('2d');
+        let rImg = rbx.createImageData(W, H);
+        let rPix = rImg.data;
+        for (let i = 0; i < W * H; i++) {
+            let b = frame[i];
+            let pi = i * 4;
+            if (b === 0) {
+                rPix[pi] = 26; rPix[pi+1] = 26; rPix[pi+2] = 46; rPix[pi+3] = 255;
+            } else {
+                let bi = b * 3;
+                rPix[pi] = BASE_COL[bi]; rPix[pi+1] = BASE_COL[bi+1]; rPix[pi+2] = BASE_COL[bi+2]; rPix[pi+3] = 255;
+            }
+        }
+        rbx.putImageData(rImg, 0, 0);
+        rX.drawImage(rbuf, 0, 0, W * SCALE, H * SCALE);
+        document.getElementById('replayFrame').textContent = idx + '/' + replayFrames.length;
+        document.getElementById('replaySlider').value = idx;
+    }
+
+    renderReplayFrame(0);
+
+    document.getElementById('replaySlider').addEventListener('input', e => {
+        playIdx = parseInt(e.target.value);
+        renderReplayFrame(playIdx);
+    });
+
+    document.getElementById('replayPlayBtn').addEventListener('click', () => {
+        if (playing) {
+            playing = false; clearInterval(playTimer);
+            document.getElementById('replayPlayBtn').textContent = '▶';
+        } else {
+            playing = true;
+            document.getElementById('replayPlayBtn').textContent = '⏸';
+            playTimer = setInterval(() => {
+                playIdx++;
+                if (playIdx >= replayFrames.length) { playIdx = 0; }
+                renderReplayFrame(playIdx);
+            }, 33);
+        }
+    });
+
+    overlay.addEventListener('click', e => {
+        if (e.target.dataset.close) {
+            if (playTimer) clearInterval(playTimer);
+            overlay.remove();
+            paused = wasPaused;
+        }
+    });
+}
+
 // ===================== FUN TOOLS =====================
 function toolRain() {
     sfxPlay('splash');
@@ -5822,6 +5985,7 @@ function loop(time) {
         paint();
         if (!paused) {
             updateTools();
+            captureFrame();
             if (simSpeed >= 5) {
                 // Normal or fast: 1 to 10 steps per frame
                 let steps = simSpeed - 4;
