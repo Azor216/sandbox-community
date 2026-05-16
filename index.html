@@ -62,6 +62,7 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
         <div class="mbtn" onclick="showHelp()" data-i18n="help">❓ Nápověda</div>
         <div class="mbtn" onclick="showGallery()" data-i18n="gallery">🌍 Galerie výtvorů</div>
         <div class="mbtn" onclick="showTutorials()">📚 Tutoriály</div>
+        <div class="mbtn" onclick="showGameModes()">🎮 Herní módy</div>
         <div class="mbtn" onclick="showProfile()" data-i18n="profile">👤 Můj profil</div>
         <div class="ver" data-i18n="version">v1.3 — 109 elementů — 2026</div>
     </div>
@@ -561,7 +562,7 @@ cs: {
     eRadiation:'Radiace',eCite:'Hlína',eBrick:'Cihla',eTorch:'Pochodeň',eRepulsor:'Odpuzovač',
     eConcrete:'Beton',eConcreteDry:'Tvrdý bet.',eMimic:'Mimik',
     ePlasma:'Plazma',eHoney:'Med',eFungus:'Houba',eSmokeBomb:'Dymovnice',
-    eRotWood:'Shnilina',eGrate:'Mřížka',eVortex:'Vír',eWindR:'Vítr →',eWindL:'← Vítr',
+    eRotWood:'Shnilina',eGrate:'Mřížka',eVortex:'Vír',eWindR:'Vítr →',eWindL:'← Vítr',eAcidRain:'Kys. déšť',
 },
 en: {
     subtitle:'Falling Sand Physics Simulator', newGame:'🎮 New Game', loadGame:'📂 Load Saved',
@@ -846,7 +847,7 @@ const ELEM_I18N = {
     'Mimic':'eMimic',
     'Plasma':'ePlasma','Honey':'eHoney','Fungus':'eFungus','SmokeBomb':'eSmokeBomb',
     'RotWood':'eRotWood','Grate':'eGrate','Vortex':'eVortex',
-    'Wind →':'eWindR','← Wind':'eWindL',
+    'Wind →':'eWindR','← Wind':'eWindL','AcidRain':'eAcidRain',
     'Liquid_Wax':'eLiquidWax',
 };
 const GROUP_I18N = {
@@ -1344,6 +1345,7 @@ const E = {
     VORTEX: 116,
     WIND_R: 117,
     WIND_L: 118,
+    ACID_RAIN: 119,
 };
 
 const ELEMS = [
@@ -1399,6 +1401,7 @@ const ELEMS = [
     { id: E.ICE, name: 'Ice', col: '#aaeeff', key: '' },
     { id: E.SNOW, name: 'Snow', col: '#f0f5ff', key: '' },
     { id: E.CLOUD, name: 'Cloud', col: '#ddeeff', key: '' },
+    { id: E.ACID_RAIN, name: 'AcidRain', col: '#99cc33', key: '' },
     { id: E.FROST, name: 'Frost', col: '#ccddff', key: '' },
     // — Fire & Explosives —
     { id: -1, name: '▸ OHEŇ & VÝBUŠNINY', group: true },
@@ -1738,6 +1741,7 @@ setBC(E.MIMIC,150,100,200); setBC(E.PLASMA,220,68,255); setBC(E.HONEY,220,170,34
 setBC(E.FUNGUS,136,119,68); setBC(E.SMOKE_BOMB,85,102,102); setBC(E.ROTTEN_WOOD,90,74,42);
 setBC(E.GRATE,136,153,153); setBC(E.VORTEX,51,102,170);
 setBC(E.WIND_R,170,204,238); setBC(E.WIND_L,170,204,238);
+setBC(E.ACID_RAIN,153,204,51);
 
 // Fast hash for spatial variation (no Math.sin)
 function hash8(x, y) { return ((x * 374761393 + y * 668265263) >>> 16) & 31; }
@@ -1882,6 +1886,7 @@ function simulate() {
                 case E.HELIUM: if (feat.gases) simGas(x, y, 0.01); break;
                 case E.GAS: if (feat.gases) simGasNatural(x, y); break;
                 case E.ACID_CLOUD: if (feat.gases) simAcidCloud(x, y); break;
+                case E.ACID_RAIN: if (feat.weather) simAcidRainCloud(x, y); break;
 
                 // OTHER (always on)
                 case E.CLONE: simClone(x, y); break;
@@ -4945,6 +4950,10 @@ function simConcrete(x, y) {
 
 function explode(cx, cy, radius) {
     sfxPlay(radius > 12 ? 'nuclear' : 'explode');
+    // Particle effects
+    let pCount = Math.min(30, radius * 2);
+    spawnParticles(cx, cy, pCount, '#ff8844', 0, -2, 20);
+    spawnParticles(cx, cy, pCount, '#ffcc00', 0, -1, 15);
     for (let dx = -radius; dx <= radius; dx++) for (let dy = -radius; dy <= radius; dy++) {
         if (dx * dx + dy * dy <= radius * radius) {
             let px = cx + dx, py = cy + dy;
@@ -5345,6 +5354,7 @@ ELEM_INFO[E.COOLER] = 'Chladí okolí, mrazí vodu/lávu';
 ELEM_INFO[E.VORTEX] = 'Rotuje vše kolem sebe v kruhu, vtahuje dovnitř';
 ELEM_INFO[E.WIND_R] = 'Fouká prášky, plyny a kapaliny doprava';
 ELEM_INFO[E.WIND_L] = 'Fouká prášky, plyny a kapaliny doleva';
+ELEM_INFO[E.ACID_RAIN] = 'Mrak co prší kyselinu';
 
 function updateTooltip() {
     let tip = document.getElementById('tooltip');
@@ -5728,6 +5738,274 @@ function paint() {
     if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
 }
 
+// ===================== ACID RAIN CLOUD =====================
+function simAcidRainCloud(x, y) {
+    // Rise like cloud
+    if (y > 2 && Math.random() < 0.4) {
+        let above = get(x, y - 1);
+        if (above === E.EMPTY || above === E.SMOKE) { swap(x, y, x, y - 1); return; }
+        let d = Math.random() < 0.5 ? -1 : 1;
+        if (isEmpty(x + d, y - 1)) { swap(x, y, x + d, y - 1); return; }
+    }
+    // Drift
+    if (Math.random() < 0.15) {
+        let d = (frameN % 200 < 100) ? 1 : -1;
+        if (isEmpty(x + d, y)) swap(x, y, x + d, y);
+    }
+    // Rain acid
+    if (Math.random() < 0.015) {
+        for (let dy = 1; dy <= 3; dy++) {
+            if (y + dy < H && isEmpty(x, y + dy)) { set(x, y + dy, E.ACID); break; }
+        }
+    }
+    // Slowly dissipate
+    if (Math.random() < 0.001) set(x, y, E.SMOKE);
+}
+
+// ===================== PARTICLE EFFECTS =====================
+let particles = [];
+const PARTICLE_MAX = 200;
+
+function spawnParticles(x, y, count, col, vx, vy, life) {
+    for (let i = 0; i < count; i++) {
+        if (particles.length >= PARTICLE_MAX) particles.shift();
+        particles.push({
+            x: x * SCALE + Math.random() * SCALE,
+            y: y * SCALE + Math.random() * SCALE,
+            vx: vx + (Math.random() - 0.5) * 3,
+            vy: vy + (Math.random() - 0.5) * 3,
+            life: life + Math.random() * life * 0.5,
+            col: col,
+            size: 1 + Math.random() * 2
+        });
+    }
+}
+
+function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.1; // gravity
+        p.life--;
+        if (p.life <= 0) { particles.splice(i, 1); continue; }
+        let alpha = Math.min(1, p.life / 15);
+        X.globalAlpha = alpha;
+        X.fillStyle = p.col;
+        X.fillRect(p.x, p.y, p.size, p.size);
+    }
+    X.globalAlpha = 1;
+}
+
+// ===================== GAME MODES =====================
+let gameMode = 'sandbox'; // 'sandbox', 'sandbox+', 'survival', 'puzzle'
+let survivalWave = 0;
+let survivalTimer = 0;
+let puzzleLevel = 0;
+
+function showGameModes() {
+    let overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:2000;overflow-y:auto;padding:30px';
+    overlay.innerHTML = '<div style="max-width:500px;margin:0 auto;color:#ccc">' +
+        '<h2 style="color:#ff8844;text-align:center;margin-bottom:20px">🎮 Herní módy</h2>' +
+        '<div style="display:flex;flex-direction:column;gap:10px">' +
+        '<div class="mbtn" data-mode="sandbox" style="text-align:left;width:100%">🏖️ <b>Sandbox</b><br><span style="font-size:12px;color:#888">Klasický režim — volná kreativita</span></div>' +
+        '<div class="mbtn" data-mode="sandbox+" style="text-align:left;width:100%">🚀 <b>Sandbox+</b><br><span style="font-size:12px;color:#888">Max štětec 50, nulová gravitace toggle, neomezené</span></div>' +
+        '<div class="mbtn" data-mode="survival" style="text-align:left;width:100%">⚔️ <b>Survival</b><br><span style="font-size:12px;color:#888">Přežij vlny katastrof — meteory, záplavy, nuke!</span></div>' +
+        '<div class="mbtn" data-mode="puzzle" style="text-align:left;width:100%">🧩 <b>Puzzle</b><br><span style="font-size:12px;color:#888">Vyřeš úkoly — dostaň vodu z A do B</span></div>' +
+        '</div><br><div style="text-align:center"><button class="mbtn" style="display:inline-block;width:auto;padding:10px 30px" data-close="1">✕ Zavřít</button></div></div>';
+    overlay.addEventListener('click', e => {
+        let mode = e.target.closest('[data-mode]');
+        if (mode) { startGameMode(mode.dataset.mode); overlay.remove(); }
+        if (e.target.dataset.close) overlay.remove();
+    });
+    document.body.appendChild(overlay);
+}
+
+function startGameMode(mode) {
+    gameMode = mode;
+    startNew();
+    survivalWave = 0; survivalTimer = 0; puzzleLevel = 0;
+    if (mode === 'sandbox+') {
+        document.getElementById('bsize').max = 50;
+        brushR = 10;
+        document.getElementById('bsize').value = 10;
+        document.getElementById('bval').textContent = 10;
+    } else {
+        document.getElementById('bsize').max = 12;
+    }
+    if (mode === 'puzzle') {
+        loadPuzzle(0);
+    }
+}
+
+function updateGameMode() {
+    if (gameMode === 'survival') updateSurvival();
+    if (gameMode === 'puzzle') updatePuzzle();
+}
+
+// ===================== SURVIVAL MODE =====================
+const SURVIVAL_WAVES = [
+    { name: 'Déšť', delay: 300, action: () => toolRain() },
+    { name: 'Meteorit', delay: 400, action: () => toolMeteor() },
+    { name: 'Záplava', delay: 500, action: () => { for(let i=0;i<30;i++){let rx=Math.floor(Math.random()*W);if(isEmpty(rx,H-1))set(rx,H-1,E.WATER);} } },
+    { name: 'Blesk', delay: 300, action: () => lightning(Math.floor(Math.random()*W)) },
+    { name: 'Tornádo', delay: 400, action: () => tornado(Math.floor(Math.random()*W), Math.floor(H/2)) },
+    { name: 'Zemětřesení', delay: 350, action: () => earthquake() },
+    { name: 'Meteor storm', delay: 200, action: () => { toolMeteor(); toolMeteor(); } },
+    { name: 'Kyselinový déšť', delay: 300, action: () => { for(let i=0;i<40;i++){let rx=Math.floor(Math.random()*W);if(isEmpty(rx,0))set(rx,0,E.ACID);} } },
+    { name: 'NUKE!', delay: 600, action: () => toolNuke() },
+    { name: 'Apokalypsa', delay: 200, action: () => { toolMeteor(); toolNuke(); earthquake(); } },
+];
+
+function updateSurvival() {
+    survivalTimer++;
+    let wave = SURVIVAL_WAVES[survivalWave % SURVIVAL_WAVES.length];
+    if (survivalTimer >= wave.delay) {
+        survivalTimer = 0;
+        wave.action();
+        sfxPlay('explode');
+        survivalWave++;
+        // Show wave notification
+        X.fillStyle = 'rgba(0,0,0,0.6)';
+        X.fillRect(W*SCALE/2 - 100, 20, 200, 30);
+        X.fillStyle = '#ff8844';
+        X.font = 'bold 14px monospace';
+        X.textAlign = 'center';
+        X.fillText('⚔️ Vlna ' + survivalWave + ': ' + wave.name, W*SCALE/2, 40);
+    }
+    // Count humans alive
+    let humans = 0;
+    for (let i = 0; i < W*H; i++) if (grid[i] === E.HUMAN) humans++;
+    X.fillStyle = '#fff';
+    X.font = '11px monospace';
+    X.textAlign = 'right';
+    X.fillText('Vlna: ' + survivalWave + ' | Lidé: ' + humans, W*SCALE - 5, 12);
+    if (humans === 0 && survivalWave > 0) {
+        X.fillStyle = 'rgba(0,0,0,0.7)';
+        X.fillRect(W*SCALE/2 - 120, H*SCALE/2 - 30, 240, 60);
+        X.fillStyle = '#ff4444';
+        X.font = 'bold 20px monospace';
+        X.textAlign = 'center';
+        X.fillText('☠️ GAME OVER', W*SCALE/2, H*SCALE/2);
+        X.fillStyle = '#888';
+        X.font = '12px monospace';
+        X.fillText('Přežil jsi ' + survivalWave + ' vln', W*SCALE/2, H*SCALE/2 + 20);
+    }
+}
+
+// ===================== PUZZLE MODE =====================
+const PUZZLES = [
+    {
+        name: 'Vodovod',
+        desc: 'Dostaň vodu z kohoutku vlevo do nádrže vpravo',
+        setup: () => {
+            // Faucet on left, glass tank on right
+            set(5, 50, E.FAUCET);
+            for (let y = 45; y < 80; y++) { set(350, y, E.GLASS); set(390, y, E.GLASS); }
+            for (let x = 350; x <= 390; x++) set(80, x, E.GLASS);
+            // Floor
+            for (let x = 0; x < W; x++) set(x, H-1, E.STONE);
+        },
+        check: () => {
+            // Count water in right area
+            let water = 0;
+            for (let y = 45; y < 80; y++) for (let x = 351; x < 390; x++) {
+                if (get(x, y) === E.WATER) water++;
+            }
+            return water >= 50;
+        }
+    },
+    {
+        name: 'Most',
+        desc: 'Postav most přes propast aby člověk přešel',
+        setup: () => {
+            for (let x = 0; x < W; x++) set(x, 200, E.STONE);
+            for (let x = 150; x < 250; x++) set(x, 200, E.EMPTY); // gap
+            for (let x = 150; x < 250; x++) for (let y = 201; y < H; y++) set(x, y, E.EMPTY);
+            set(20, 199, E.HUMAN);
+        },
+        check: () => {
+            for (let y = 195; y < 205; y++) if (get(350, y) === E.HUMAN) return true;
+            return false;
+        }
+    },
+    {
+        name: 'Reaktor',
+        desc: 'Rozsvíť lampu jadernou energií',
+        setup: () => {
+            for (let x = 0; x < W; x++) set(x, H-1, E.STONE);
+            set(300, H-2, E.LAMP);
+        },
+        check: () => {
+            // Check if any light near lamp
+            for (let dx = -3; dx <= 3; dx++) for (let dy = -3; dy <= 3; dy++) {
+                if (get(300+dx, H-2+dy) === E.LIGHT) return true;
+            }
+            return false;
+        }
+    },
+    {
+        name: 'Hasič',
+        desc: 'Uhas všechen oheň na mapě',
+        setup: () => {
+            for (let x = 0; x < W; x++) set(x, H-1, E.STONE);
+            for (let i = 0; i < 100; i++) {
+                let x = 50 + Math.floor(Math.random() * 300);
+                let y = 100 + Math.floor(Math.random() * 150);
+                set(x, y, E.WOOD);
+            }
+            for (let i = 0; i < 20; i++) {
+                let x = 50 + Math.floor(Math.random() * 300);
+                let y = 100 + Math.floor(Math.random() * 100);
+                if (get(x,y) === E.WOOD) set(x, y, E.FIRE);
+            }
+        },
+        check: () => {
+            for (let i = 0; i < W*H; i++) if (grid[i] === E.FIRE) return false;
+            return true;
+        }
+    },
+];
+
+function loadPuzzle(idx) {
+    puzzleLevel = idx;
+    if (idx >= PUZZLES.length) {
+        alert('🎉 Gratulace! Všechny puzzle vyřešeny! +500 XP');
+        profileAddXP(500);
+        gameMode = 'sandbox';
+        return;
+    }
+    grid.fill(0); heatGrid.fill(0);
+    let p = PUZZLES[idx];
+    p.setup();
+    // Show puzzle info
+    setTimeout(() => {
+        alert('🧩 Puzzle ' + (idx+1) + '/' + PUZZLES.length + ': ' + p.name + '\n\n' + p.desc);
+    }, 100);
+}
+
+let puzzleCheckTimer = 0;
+function updatePuzzle() {
+    puzzleCheckTimer++;
+    if (puzzleCheckTimer < 60) return; // check every second
+    puzzleCheckTimer = 0;
+    let p = PUZZLES[puzzleLevel];
+    if (p && p.check()) {
+        profileAddXP(100);
+        alert('✅ Puzzle "' + p.name + '" vyřešen! +100 XP');
+        loadPuzzle(puzzleLevel + 1);
+    }
+    // HUD
+    if (PUZZLES[puzzleLevel]) {
+        X.fillStyle = 'rgba(0,0,0,0.5)';
+        X.fillRect(0, 0, W*SCALE, 18);
+        X.fillStyle = '#ff8844';
+        X.font = 'bold 11px monospace';
+        X.textAlign = 'left';
+        X.fillText('🧩 ' + PUZZLES[puzzleLevel].name + ': ' + PUZZLES[puzzleLevel].desc, 5, 13);
+    }
+}
+
 // ===================== URL SHARING =====================
 function shareURL() {
     let compressed = galleryCompressGrid();
@@ -6082,6 +6360,8 @@ function loop(time) {
             }
         }
         draw();
+        updateParticles();
+        updateGameMode();
         // FPS counter
         fpsCnt++;
         if (time - fpsTime >= 1000) {
