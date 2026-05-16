@@ -444,6 +444,7 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
     <button class="btn" style="background:#345;font-size:10px" onclick="takeScreenshot()">📸</button>
     <button class="btn" style="background:#453;font-size:10px" id="recBtn" onclick="toggleRecording()">⏺ Rec</button>
     <button class="btn" style="background:#446;font-size:10px" onclick="toggleFullscreen()">⛶</button>
+    <button class="btn" style="background:#456;font-size:10px" onclick="shareURL()">🔗</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <div id="tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#eee;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;border:1px solid #555;max-width:200px"></div>
@@ -5727,6 +5728,36 @@ function paint() {
     if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
 }
 
+// ===================== URL SHARING =====================
+function shareURL() {
+    let compressed = galleryCompressGrid();
+    let url = window.location.origin + window.location.pathname + '#map=' + compressed;
+    if (url.length > 32000) {
+        alert('Mapa je příliš velká pro URL sdílení. Použij kód v Galerii.');
+        return;
+    }
+    navigator.clipboard.writeText(url).then(() => {
+        alert('🔗 Odkaz zkopírován do schránky!\nPošli ho kamarádovi — otevře tvou mapu.');
+    }).catch(() => {
+        prompt('Zkopíruj odkaz:', url);
+    });
+}
+
+function loadFromURL() {
+    let hash = window.location.hash;
+    if (!hash || !hash.startsWith('#map=')) return false;
+    let b64 = hash.substring(5);
+    try {
+        galleryDecompressGrid(b64);
+        neutronAge.fill(0); wireCooldown.fill(0); mimicState.fill(0); heatGrid.fill(0);
+        // Clear hash so refresh doesn't reload
+        history.replaceState(null, '', window.location.pathname);
+        return true;
+    } catch(e) {
+        return false;
+    }
+}
+
 // ===================== FULLSCREEN =====================
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -7215,9 +7246,13 @@ setInterval(() => { let p = ensureProfile(); profileUpdateTime(); }, 300000);
 
 buildUI();
 updateSlotLabels();
-// Apply saved language
 document.getElementById('setLang').value = currentLang;
 applyLang();
+// Auto-load from URL if shared link
+if (window.location.hash && window.location.hash.startsWith('#map=')) {
+    startNew();
+    loadFromURL();
+}
 requestAnimationFrame(loop);
 </script>
 </body>
