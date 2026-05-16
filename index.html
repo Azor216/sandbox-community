@@ -443,6 +443,7 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
     <button class="btn" style="background:#353;font-size:10px" onclick="showChallenges()">🎯</button>
     <button class="btn" style="background:#345;font-size:10px" onclick="takeScreenshot()">📸</button>
     <button class="btn" style="background:#453;font-size:10px" id="recBtn" onclick="toggleRecording()">⏺ Rec</button>
+    <button class="btn" style="background:#446;font-size:10px" onclick="toggleFullscreen()">⛶</button>
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <div id="tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#eee;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;border:1px solid #555;max-width:200px"></div>
@@ -559,7 +560,7 @@ cs: {
     eRadiation:'Radiace',eCite:'Hlína',eBrick:'Cihla',eTorch:'Pochodeň',eRepulsor:'Odpuzovač',
     eConcrete:'Beton',eConcreteDry:'Tvrdý bet.',eMimic:'Mimik',
     ePlasma:'Plazma',eHoney:'Med',eFungus:'Houba',eSmokeBomb:'Dymovnice',
-    eRotWood:'Shnilina',eGrate:'Mřížka',eVortex:'Vír',
+    eRotWood:'Shnilina',eGrate:'Mřížka',eVortex:'Vír',eWindR:'Vítr →',eWindL:'← Vítr',
 },
 en: {
     subtitle:'Falling Sand Physics Simulator', newGame:'🎮 New Game', loadGame:'📂 Load Saved',
@@ -844,6 +845,7 @@ const ELEM_I18N = {
     'Mimic':'eMimic',
     'Plasma':'ePlasma','Honey':'eHoney','Fungus':'eFungus','SmokeBomb':'eSmokeBomb',
     'RotWood':'eRotWood','Grate':'eGrate','Vortex':'eVortex',
+    'Wind →':'eWindR','← Wind':'eWindL',
     'Liquid_Wax':'eLiquidWax',
 };
 const GROUP_I18N = {
@@ -1339,6 +1341,8 @@ const E = {
     ROTTEN_WOOD: 114,
     GRATE: 115,
     VORTEX: 116,
+    WIND_R: 117,
+    WIND_L: 118,
 };
 
 const ELEMS = [
@@ -1484,6 +1488,8 @@ const ELEMS = [
     { id: E.MIMIC, name: 'Mimic', col: '#9966cc', key: '' },
     { id: E.PLASMA, name: 'Plasma', col: '#dd44ff', key: '' },
     { id: E.VORTEX, name: 'Vortex', col: '#3366aa', key: '' },
+    { id: E.WIND_R, name: 'Wind →', col: '#aaccee', key: '' },
+    { id: E.WIND_L, name: '← Wind', col: '#aaccee', key: '' },
     // — Eraser —
     { id: E.ERASER, name: 'Eraser', col: '#222', key: 'x' },
 ];
@@ -1535,7 +1541,7 @@ function swap(x1, y1, x2, y2) {
     return true;
 }
 function isEmpty(x, y) { return get(x, y) === E.EMPTY; }
-const SOLID = new Set([E.SAND,E.STONE,E.WOOD,E.LEAVES,E.ICE,E.GLASS,E.METAL,E.RUST,E.WAX,E.FUSE,E.C4,E.MAGNET,E.CHARCOAL,E.GRAVEL,E.WIRE,E.BATTERY,E.CLONE,E.VOID,E.OBSIDIAN,E.RUBBER,E.CACTUS,E.SPONGE,E.CORAL,E.SALT,E.THERMITE,E.BEDROCK,E.FAUCET,E.URANIUM,E.TURBINE,E.LAMP,E.LASER_EMIT,E.COPPER,E.TITANIUM,E.LEAD,E.GOLD_M,E.IRON,E.BLACK_HOLE,E.CONVEYOR_R,E.CONVEYOR_L,E.HEATER,E.COOLER,E.DYNAMITE,E.DIAMOND,E.MIRROR,E.BOMB,E.GUNPOWDER,E.SNOW,E.DUST,E.PHOSPHORUS,E.CLAY,E.BRICK,E.TORCH,E.REPULSOR,E.CONCRETE,E.CONCRETE_DRY,E.GRATE]);
+const SOLID = new Set([E.SAND,E.STONE,E.WOOD,E.LEAVES,E.ICE,E.GLASS,E.METAL,E.RUST,E.WAX,E.FUSE,E.C4,E.MAGNET,E.CHARCOAL,E.GRAVEL,E.WIRE,E.BATTERY,E.CLONE,E.VOID,E.OBSIDIAN,E.RUBBER,E.CACTUS,E.SPONGE,E.CORAL,E.SALT,E.THERMITE,E.BEDROCK,E.FAUCET,E.URANIUM,E.TURBINE,E.LAMP,E.LASER_EMIT,E.COPPER,E.TITANIUM,E.LEAD,E.GOLD_M,E.IRON,E.BLACK_HOLE,E.CONVEYOR_R,E.CONVEYOR_L,E.HEATER,E.COOLER,E.DYNAMITE,E.DIAMOND,E.MIRROR,E.BOMB,E.GUNPOWDER,E.SNOW,E.DUST,E.PHOSPHORUS,E.CLAY,E.BRICK,E.TORCH,E.REPULSOR,E.CONCRETE,E.CONCRETE_DRY,E.GRATE,E.WIND_R,E.WIND_L]);
 function isFlammable(x, y) { let b = get(x, y); return b === E.WOOD || b === E.OIL || b === E.PLANT || b === E.GUNPOWDER || b === E.NITRO || b === E.WAX || b === E.FUSE || b === E.PHOSPHORUS || b === E.CHARCOAL || b === E.SLIME || b === E.COTTON || b === E.TAR || b === E.NAPALM || b === E.ALGAE || b === E.DUST || b === E.THERMITE || b === E.C4 || b === E.SPONGE || b === E.RUBBER || b === E.DYNAMITE || b === E.GAS || b === E.LEAVES || b === E.SEED || b === E.YEAST || b === E.FUNGUS || b === E.HONEY; }
 function isSolid(x, y) { return SOLID.has(get(x, y)); }
 const ACID_IMMUNE = new Set([E.EMPTY,E.ACID,E.GLASS,E.WATER,E.OBSIDIAN,E.BEDROCK,E.TITANIUM,E.VOID,E.CLONE,E.BLACK_HOLE,E.URANIUM,E.TURBINE,E.FAUCET,E.PORTAL_A,E.PORTAL_B,E.CONVEYOR_R,E.CONVEYOR_L,E.HEATER,E.COOLER,E.LAMP,E.LASER_EMIT,E.BATTERY,E.DIAMOND,E.MIRROR,E.GOLD_M,E.RUBBER]);
@@ -1730,6 +1736,7 @@ setBC(E.REPULSOR,60,160,255); setBC(E.CONCRETE,150,148,130); setBC(E.CONCRETE_DR
 setBC(E.MIMIC,150,100,200); setBC(E.PLASMA,220,68,255); setBC(E.HONEY,220,170,34);
 setBC(E.FUNGUS,136,119,68); setBC(E.SMOKE_BOMB,85,102,102); setBC(E.ROTTEN_WOOD,90,74,42);
 setBC(E.GRATE,136,153,153); setBC(E.VORTEX,51,102,170);
+setBC(E.WIND_R,170,204,238); setBC(E.WIND_L,170,204,238);
 
 // Fast hash for spatial variation (no Math.sin)
 function hash8(x, y) { return ((x * 374761393 + y * 668265263) >>> 16) & 31; }
@@ -2041,6 +2048,42 @@ function smokeExplosion(cx, cy, radius) {
 }
 
 // --- ROTTEN WOOD: crumbles, spreads rot to wood, breeds fungus ---
+// --- WIND: pushes particles sideways, affects powders/gases/liquids ---
+function simWind(x, y, dir) {
+    let range = 12;
+    for (let dist = 1; dist <= range; dist++) {
+        let nx = x + dir * dist;
+        if (nx < 0 || nx >= W) break;
+        let el = get(nx, y);
+        if (el === E.EMPTY) continue;
+        // Don't push solids/heavy blocks
+        if (el === E.STONE || el === E.WOOD || el === E.METAL || el === E.IRON ||
+            el === E.BEDROCK || el === E.OBSIDIAN || el === E.GLASS || el === E.BRICK ||
+            el === E.CLONE || el === E.VOID || el === E.BLACK_HOLE || el === E.WIND_R ||
+            el === E.WIND_L || el === E.VORTEX || el === E.TITANIUM || el === E.DIAMOND ||
+            el === E.CONCRETE_DRY || el === E.GRATE) continue;
+        // Push with decreasing force
+        let pushChance = 0.4 / dist;
+        if (Math.random() < pushChance) {
+            let tx = nx + dir;
+            if (tx >= 0 && tx < W && isEmpty(tx, y)) {
+                swap(nx, y, tx, y);
+            }
+        }
+    }
+    // Occasional visual: push particles up slightly (wind turbulence)
+    if (Math.random() < 0.05) {
+        let rx = x + dir * Math.floor(Math.random() * range);
+        if (rx >= 0 && rx < W && y > 0 && !isEmpty(rx, y) && isEmpty(rx, y - 1)) {
+            let el = get(rx, y);
+            if (el === E.SAND || el === E.DUST || el === E.ASH || el === E.SNOW ||
+                el === E.SMOKE || el === E.STEAM || el === E.HELIUM) {
+                swap(rx, y, rx, y - 1);
+            }
+        }
+    }
+}
+
 // --- VORTEX: spins everything around it in a circle ---
 function simVortex(x, y) {
     let radius = 8;
@@ -5301,6 +5344,8 @@ ELEM_INFO[E.SMOKE_BOMB] = 'Exploze → masivní kouřový oblak';
 ELEM_INFO[E.HEATER] = 'Ohřívá okolí, taví led/sníh/vosk';
 ELEM_INFO[E.COOLER] = 'Chladí okolí, mrazí vodu/lávu';
 ELEM_INFO[E.VORTEX] = 'Rotuje vše kolem sebe v kruhu, vtahuje dovnitř';
+ELEM_INFO[E.WIND_R] = 'Fouká prášky, plyny a kapaliny doprava';
+ELEM_INFO[E.WIND_L] = 'Fouká prášky, plyny a kapaliny doleva';
 
 function updateTooltip() {
     let tip = document.getElementById('tooltip');
@@ -5682,6 +5727,16 @@ function paint() {
         }
     }
     if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
+}
+
+// ===================== FULLSCREEN =====================
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        (document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen || document.documentElement.msRequestFullscreen).call(document.documentElement);
+    } else {
+        (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
+    }
+    setTimeout(resizeCanvas, 300);
 }
 
 // ===================== SCREENSHOT =====================
