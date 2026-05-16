@@ -5079,11 +5079,16 @@ let paused = false;
 
 function canvasToGrid(clientX, clientY) {
     let rect = C.getBoundingClientRect();
-    let scaleX = C.width / rect.width;
-    let scaleY = C.height / rect.height;
+    // Account for border
+    let borderL = parseInt(getComputedStyle(C).borderLeftWidth) || 0;
+    let borderT = parseInt(getComputedStyle(C).borderTopWidth) || 0;
+    let innerW = rect.width - borderL * 2;
+    let innerH = rect.height - borderT * 2;
+    let relX = clientX - rect.left - borderL;
+    let relY = clientY - rect.top - borderT;
     return [
-        Math.floor((clientX - rect.left) * scaleX / SCALE),
-        Math.floor((clientY - rect.top) * scaleY / SCALE)
+        Math.floor(relX / innerW * W),
+        Math.floor(relY / innerH * H)
     ];
 }
 
