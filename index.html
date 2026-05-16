@@ -449,6 +449,16 @@ canvas#c{border:2px solid #333;cursor:crosshair;border-radius:4px;touch-action:n
     <span id="elemCounter" style="font-size:10px;color:#666;margin-left:auto"></span>
 </div>
 <div id="tooltip" style="display:none;position:absolute;background:rgba(0,0,0,0.85);color:#eee;padding:6px 10px;border-radius:6px;font-size:11px;pointer-events:none;z-index:100;border:1px solid #555;max-width:200px"></div>
+<div id="sandboxPlus" style="display:none;align-items:center;gap:4px;padding:2px 4px;flex-wrap:wrap;background:rgba(255,136,68,0.05);border:1px solid #553;border-radius:4px;margin:2px 4px">
+    <span style="font-size:9px;color:#ff8844;font-weight:bold">🚀 S+</span>
+    <button class="btn" style="background:#556;font-size:10px" id="gravToggle" onclick="toggleGravityMode()">🧲 Gravity</button>
+    <button class="btn" style="background:#556;font-size:10px" id="timeFreeze" onclick="toggleTimeFreeze()">❄️ Freeze</button>
+    <button class="btn" style="background:#556;font-size:10px" id="mirrorBtn" onclick="toggleMirror()">🪞 Mirror</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="bucketFill()">🪣 Bucket</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="randomScatter()">🎲 Random</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="replaceAll()">🔁 Replace</button>
+    <button class="btn" style="background:#556;font-size:10px" onclick="invertAll()">◓ Invert</button>
+</div>
 <canvas id="c"></canvas>
 <div id="info" data-i18n="infoBar">LMB = kreslit | RMB = mazat | Scroll = brush | P = pauza | C = clear | L = blesk | T = tornado | Q = earthquake | G = gravity | R = déšť | M = meteor | F = záplava | N = nuke</div>
 </div><!-- /game -->
@@ -5736,6 +5746,27 @@ function paint() {
         }
     }
     if (pxCount > 0 && typeof profileTrackPixels === 'function') profileTrackPixels(pxCount);
+    // Mirror mode: draw on opposite side
+    if (mirrorMode && (painting || erasing) && lastMX >= 0) {
+        let mx = W - 1 - lastMX;
+        if (sprayMode && !erasing) {
+            let count = Math.max(1, Math.floor(brushR * brushR * 0.3));
+            for (let i = 0; i < count; i++) {
+                let angle = Math.random() * 6.28;
+                let dist = Math.random() * brushR;
+                let px = mx + Math.round(Math.cos(angle) * dist);
+                let py = lastMY + Math.round(Math.sin(angle) * dist);
+                if (px >= 0 && px < W && py >= 0 && py < H) set(px, py, type);
+            }
+        } else {
+            for (let dx = -brushR; dx <= brushR; dx++) for (let dy = -brushR; dy <= brushR; dy++) {
+                if (dx * dx + dy * dy > brushR * brushR) continue;
+                let px = mx + dx, py = lastMY + dy;
+                if (px < 0 || px >= W || py < 0 || py >= H) continue;
+                set(px, py, type);
+            }
+        }
+    }
 }
 
 // ===================== ACID RAIN CLOUD =====================
@@ -5830,11 +5861,93 @@ function startGameMode(mode) {
         brushR = 10;
         document.getElementById('bsize').value = 10;
         document.getElementById('bval').textContent = 10;
+        document.getElementById('sandboxPlus').style.display = 'flex';
     } else {
         document.getElementById('bsize').max = 12;
+        document.getElementById('sandboxPlus').style.display = 'none';
     }
     if (mode === 'puzzle') {
         loadPuzzle(0);
+    }
+}
+
+// ===================== SANDBOX+ FEATURES =====================
+let gravityOff = false;
+let timeFrozen = false;
+let mirrorMode = false;
+
+function toggleGravityMode() {
+    gravityOff = !gravityOff;
+    feat.gravity = !gravityOff;
+    let btn = document.getElementById('gravToggle');
+    btn.style.borderColor = gravityOff ? '#ff8844' : '#444';
+    btn.style.boxShadow = gravityOff ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
+}
+
+function toggleTimeFreeze() {
+    timeFrozen = !timeFrozen;
+    paused = timeFrozen;
+    let btn = document.getElementById('timeFreeze');
+    btn.style.borderColor = timeFrozen ? '#44aaff' : '#444';
+    btn.style.boxShadow = timeFrozen ? '0 0 8px rgba(68,170,255,0.5)' : 'none';
+}
+
+function toggleMirror() {
+    mirrorMode = !mirrorMode;
+    let btn = document.getElementById('mirrorBtn');
+    btn.style.borderColor = mirrorMode ? '#ff8844' : '#444';
+    btn.style.boxShadow = mirrorMode ? '0 0 8px rgba(255,136,68,0.5)' : 'none';
+}
+
+function bucketFill() {
+    if (lastMX < 0 || lastMX >= W || lastMY < 0 || lastMY >= H) return;
+    let target = get(lastMX, lastMY);
+    let fill = curElem;
+    if (target === fill) return;
+    undoSnapshot();
+    let stack = [[lastMX, lastMY]];
+    let visited = new Set();
+    let maxFill = 10000;
+    while (stack.length > 0 && maxFill > 0) {
+        let [fx, fy] = stack.pop();
+        let key = fy * W + fx;
+        if (visited.has(key)) continue;
+        if (fx < 0 || fx >= W || fy < 0 || fy >= H) continue;
+        if (get(fx, fy) !== target) continue;
+        visited.add(key);
+        set(fx, fy, fill);
+        maxFill--;
+        stack.push([fx+1,fy],[fx-1,fy],[fx,fy+1],[fx,fy-1]);
+    }
+}
+
+function randomScatter() {
+    undoSnapshot();
+    let elems = [E.SAND,E.WATER,E.STONE,E.FIRE,E.LAVA,E.OIL,E.ICE,E.PLANT,E.GUNPOWDER,E.ACID];
+    for (let i = 0; i < 5000; i++) {
+        let x = Math.floor(Math.random() * W);
+        let y = Math.floor(Math.random() * H);
+        if (isEmpty(x, y)) {
+            set(x, y, elems[Math.floor(Math.random() * elems.length)]);
+        }
+    }
+}
+
+function replaceAll() {
+    if (lastMX < 0) return;
+    let target = get(lastMX, lastMY);
+    if (target === E.EMPTY) return;
+    undoSnapshot();
+    for (let i = 0; i < W * H; i++) {
+        if (grid[i] === target) grid[i] = curElem;
+    }
+}
+
+function invertAll() {
+    undoSnapshot();
+    for (let i = 0; i < W * H; i++) {
+        if (grid[i] === E.EMPTY) grid[i] = curElem;
+        else if (grid[i] === curElem) grid[i] = E.EMPTY;
     }
 }
 
